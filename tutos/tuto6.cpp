@@ -10,6 +10,9 @@
 #include "mesh.h"
 #include "wavefront.h"  // pour charger un objet au format .obj
 #include "texture.h"
+#include "program.h"
+#include "uniforms.h"
+
 
 #include "orbiter.h"
 
@@ -21,6 +24,7 @@ int lon = l*w;
 Mesh objet[11*11];
 Transform model[11*11];
 GLuint texture;
+GLuint m_program;
 Orbiter camera;
 
 int init( )
@@ -37,7 +41,11 @@ int init( )
   	
     objet[0].bounds(pmin, pmax);
     camera.lookat(0*pmin,22*pmax);
-    
+   
+
+    m_program= read_program("tutos/tuto9_color.glsl");
+    program_print_errors(m_program);
+        
     // etape 2 : creer une camera pour observer l'objet
     // construit l'englobant de l'objet, les extremites de sa boite englobante
     //Point pmin, pmax, pmin2, pmax2;
@@ -61,7 +69,7 @@ int init( )
 
     l'exemple cree la texture sur l'unite 0 avec les parametres par defaut
  */
-    texture= read_texture(0, "data/debug2x2red.png");
+    //texture= read_texture(0, "data/debug2x2red.png");
 
     // etat openGL par defaut
     glClearColor(0.2f, 0.2f, 0.2f, 1.f);        // couleur par defaut de la fenetre
@@ -102,7 +110,17 @@ int draw( )
     for (int i=0; i<l; i++){
 	for (int j=0; j<w; j++){
 	    model[i*j+j] = Translation(2*i, 0, 2*j);
-	    draw(objet[i*j+j], model[i*j+j], camera, texture);
+	    //draw(objet[i*j+j], model[i*j+j], camera, texture);
+            Transform view= camera.view();
+	    Transform projection= camera.projection(window_width(), window_height(), 45);
+            Transform mvp= projection * view * model[i*j+j];
+
+	    program_uniform(m_program, "mvpMatrix", mvp);
+
+	    program_uniform(m_program, "color", vec4(0, 1, 0, 1));
+            
+            objet[i*j+j].draw(m_program, /* use position */ true, /* use texcoord */ false, /* use normal */ false, /* use color */ false, /* use material index*/ false);
+        
 	}
     }
     //CHANGE
@@ -124,7 +142,7 @@ int quit( )
     }
     
     // et la texture
-    glDeleteTextures(1, &texture);
+    //glDeleteTextures(1, &texture);
 
     return 0;   // ras, pas d'erreur
 }

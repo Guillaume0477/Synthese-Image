@@ -15,23 +15,44 @@
 
 #include "draw.h"        // pour dessiner du point de vue d'une camera
 
-Mesh objet;
+int l=11;
+int w=11;
+int lon = l*w;
+Mesh objet[11*11];
+Transform model[11*11];
 GLuint texture;
 Orbiter camera;
 
 int init( )
 {
     // etape 1 : charger un objet
-    objet= read_mesh("data/cube.obj");
+    //objet= read_mesh("data/Cyclops.obj");
+
+    //CHANGE
+    
+    Point pmin, pmax;
+    for (int i=0; i< l*w; i++) {
+	objet[i]= read_mesh("data/cube.obj");
+    }
+  	
+    objet[0].bounds(pmin, pmax);
+    camera.lookat(0*pmin,22*pmax);
     
     // etape 2 : creer une camera pour observer l'objet
     // construit l'englobant de l'objet, les extremites de sa boite englobante
-    Point pmin, pmax;
-    objet.bounds(pmin, pmax);
+    //Point pmin, pmax, pmin2, pmax2;
+    //objet.bounds(pmin, pmax);
+
+    //CHANGE
+    //objet2.bounds(pmin2, pmax2);
+
 
     // regle le point de vue de la camera pour observer l'objet
-    camera.lookat(pmin, pmax);
+    //camera.lookat(pmin,pmax);
+    //camera.lookat(pmin2,pmax2);
 
+    printf("pmin %d", pmin);
+    printf("pmax %d", pmax);
     // etape 3 : charger une texture a aprtir d'un fichier .bmp, .jpg, .png, .tga, etc, utilise read_image( ) et sdl_image
 /*
     openGL peut utiliser plusieurs textures simultanement pour dessiner un objet, il faut les numeroter.
@@ -46,7 +67,7 @@ int init( )
     glClearColor(0.2f, 0.2f, 0.2f, 1.f);        // couleur par defaut de la fenetre
 
     // etape 3 : configuration du pipeline.
-    glClearDepth(1.f);                          // profondeur par defaut
+    glClearDepth(3.f);                          // profondeur par defaut
     glDepthFunc(GL_LESS);                       // ztest, conserver l'intersection la plus proche de la camera
     glEnable(GL_DEPTH_TEST);                    // activer le ztest
 
@@ -78,15 +99,29 @@ int draw( )
         // deplace le point de rotation
         camera.translation((float) mx / (float) window_width(), (float) my / (float) window_height());
     
+    for (int i=0; i<l; i++){
+	for (int j=0; j<w; j++){
+	    model[i*j+j] = Translation(2*i, 0, 2*j);
+	    draw(objet[i*j+j], model[i*j+j], camera, texture);
+	}
+    }
+    //CHANGE
+    //model= Translation(2, 0, 0);
+
+
     // passer la texture en parametre 
-    draw(objet, camera, texture);
+    //draw(objet, Translation(-2, 0, 0), camera, texture);
+    //draw(objet2, model, camera, texture);
     return 1;
 }
 
 int quit( )
 {
     // etape 3 : detruire la description de l'objet
-    objet.release();
+    
+    for (int i=0; i< 1; i++) {
+         objet[i].release();
+    }
     
     // et la texture
     glDeleteTextures(1, &texture);

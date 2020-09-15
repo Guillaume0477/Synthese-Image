@@ -18,14 +18,16 @@
 
 #include "draw.h"        // pour dessiner du point de vue d'une camera
 
-int l=11;
-int w=11;
+int l=2;
+int w=2;
 int lon = l*w;
-Mesh objet[11*11];
-Transform model[11*11];
+Mesh objet[2*2];
+Mesh objet2[2*2];
+Transform model[2*2];
 GLuint texture;
 GLuint m_program;
 Orbiter camera;
+std::vector<TriangleGroup> m_groups;
 
 int init( )
 {
@@ -34,16 +36,20 @@ int init( )
 
     //CHANGE
     
+
     Point pmin, pmax;
     for (int i=0; i< l*w; i++) {
-	objet[i]= read_mesh("data/cube.obj");
+	objet[i]= read_mesh("data/Robot_000001.obj");
+	objet2[i]= read_mesh("data/Robot_000002.obj");
+	m_groups= objet[i].groups();
     }
-  	
+  
+
     objet[0].bounds(pmin, pmax);
-    camera.lookat(0*pmin,22*pmax);
+    camera.lookat(pmin,2*pmax);
    
 
-    m_program= read_program("tutos/tuto9_color.glsl");
+    m_program= read_program("tutos/tuto9_groups.glsl");
     program_print_errors(m_program);
         
     // etape 2 : creer une camera pour observer l'objet
@@ -69,6 +75,7 @@ int init( )
 
     l'exemple cree la texture sur l'unite 0 avec les parametres par defaut
  */
+    //texture
     //texture= read_texture(0, "data/debug2x2red.png");
 
     // etat openGL par defaut
@@ -109,7 +116,7 @@ int draw( )
     
     for (int i=0; i<l; i++){
 	for (int j=0; j<w; j++){
-	    model[i*j+j] = Translation(2*i, 0, 2*j);
+	    model[i*j+j] = Translation(8*i, 0, 8*j);
 	    //draw(objet[i*j+j], model[i*j+j], camera, texture);
             Transform view= camera.view();
 	    Transform projection= camera.projection(window_width(), window_height(), 45);
@@ -117,10 +124,36 @@ int draw( )
 
 	    program_uniform(m_program, "mvpMatrix", mvp);
 
-	    program_uniform(m_program, "color", vec4(0, 1, 0, 1));
+	    //program_uniform(m_program, "color", vec4(0, 1, 0, 1));
+
+	    //program_use_texture(m_program, "texture0", 0, texture);
             
-            objet[i*j+j].draw(m_program, /* use position */ true, /* use texcoord */ false, /* use normal */ false, /* use color */ false, /* use material index*/ false);
-        
+	    Transform mv= view * model[i*j+j];
+            program_uniform(m_program, "mvMatrix", mv);
+
+
+             
+	    program_uniform(m_program, "temps", (int) global_time()%1000);	
+
+            //printf("temps_ecoulé = %i", (int) global_time()%1000);
+
+
+
+	    for(int k= 0; k < int(m_groups.size()); k++)
+            {
+		const Material& material= objet[i*j+j].materials().material(m_groups[k].material_index);
+
+		program_uniform(m_program, "material_color", material.diffuse);
+                
+		//time_to_second += 1;
+                //if (time_to_second%1000 == 0){
+		//	time_to_second = 0;
+		//}
+ 
+
+
+		objet[i*j+j].draw(m_groups[k].first, m_groups[k].n, m_program, /* use position */ true, /* use texcoord */ false, /* use normal */ true, /* use color */ false, /* use material index*/ false);
+	    }
 	}
     }
     //CHANGE

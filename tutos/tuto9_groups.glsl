@@ -4,11 +4,15 @@
 
 #ifdef VERTEX_SHADER
 layout(location= 0) in vec3 position;
+layout(location= 1) in vec3 position2;
 layout(location= 2) in vec3 normal;
+layout(location= 3) in vec3 normal2;
 layout(location= 4) in uint material;
 
 uniform mat4 mvpMatrix;
 uniform mat4 mvMatrix;
+uniform int temps;
+
 
 out vec3 vertex_position;
 out vec3 vertex_normal;

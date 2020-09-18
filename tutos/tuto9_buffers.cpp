@@ -20,7 +20,7 @@ struct Buffers
 
     Buffers() : vao(0), vertex_buffer(0), vertex_count(0) {}
 
-    void create(const Mesh &mesh)
+    void create(const Mesh &mesh, const Mesh &mesh2)
     {
         if (!mesh.vertex_buffer_size())
             return;
@@ -33,7 +33,7 @@ struct Buffers
         // cree et initialise le buffer: conserve la positions des sommets
         glGenBuffers(1, &vertex_buffer);
         glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
-        size_t size = mesh.vertex_buffer_size() + mesh.texcoord_buffer_size() + mesh.normal_buffer_size() + mesh.vertex_count() * sizeof(unsigned char);
+        size_t size = mesh.vertex_buffer_size() + mesh2.vertex_buffer_size() + mesh.texcoord_buffer_size() + mesh.normal_buffer_size()+ mesh2.normal_buffer_size() + mesh.vertex_count() * sizeof(unsigned char);
         glBufferData(GL_ARRAY_BUFFER, size, nullptr, GL_STATIC_DRAW);
 
         // cree et configure le vertex array object: conserve la description des attributs de sommets
@@ -59,21 +59,37 @@ struct Buffers
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, /* stride */ 0, (const GLvoid *)offset);
         glEnableVertexAttribArray(0);
 
+        // transfere les positions des sommets2
+        offset = offset + size;
+        size = mesh2.vertex_buffer_size();
+        glBufferSubData(GL_ARRAY_BUFFER, offset, size, mesh2.vertex_buffer());
+        // et configure l'attribut 0, vec3 position
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, /* stride */ 0, (const GLvoid *)offset);
+        glEnableVertexAttribArray(1);
+
         // transfere les texcoords des sommets
         offset = offset + size;
         size = mesh.texcoord_buffer_size();
         glBufferSubData(GL_ARRAY_BUFFER, offset, size, mesh.texcoord_buffer());
         // et configure l'attribut 1, vec2 texcoord
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, /* stride */ 0, (const GLvoid *)offset);
-        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, /* stride */ 0, (const GLvoid *)offset);
+        glEnableVertexAttribArray(2);
 
         // transfere les normales des sommets
         offset = offset + size;
         size = mesh.normal_buffer_size();
         glBufferSubData(GL_ARRAY_BUFFER, offset, size, mesh.normal_buffer());
         // et configure l'attribut 2, vec3 normal
-        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, /* stride */ 0, (const GLvoid *)offset);
-        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, /* stride */ 0, (const GLvoid *)offset);
+        glEnableVertexAttribArray(3);
+
+        // transfere les normales des sommets2
+        offset = offset + size;
+        size = mesh2.normal_buffer_size();
+        glBufferSubData(GL_ARRAY_BUFFER, offset, size, mesh2.normal_buffer());
+        // et configure l'attribut 2, vec3 normal
+        glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, /* stride */ 0, (const GLvoid *)offset);
+        glEnableVertexAttribArray(4);
 
         // transfere les indices materiel
         offset = offset + size;
@@ -91,8 +107,8 @@ struct Buffers
         }
 
         glBufferSubData(GL_ARRAY_BUFFER, offset, size, buffer.data());
-        glVertexAttribIPointer(3, 1, GL_UNSIGNED_BYTE, 0, (const void *)offset);
-        glEnableVertexAttribArray(3);
+        glVertexAttribIPointer(5, 1, GL_UNSIGNED_BYTE, 0, (const void *)offset);
+        glEnableVertexAttribArray(5);
 
         // conserve le nombre de sommets
         vertex_count = mesh.vertex_count();
@@ -126,7 +142,8 @@ public:
         Point pmin, pmax;
         for (int i = 0; i < l * w; i++)
         {
-            Mesh mesh = read_mesh("data/robot.obj");
+            Mesh mesh = read_mesh("data/Robot/Robot_000002.obj");
+            Mesh mesh2 = read_mesh("data/Robot/Robot_000005.obj");
             if (i == 0) // tous les m_objet sont identiques (meme matieres)
             {
                 // recupere les matieres.
@@ -141,7 +158,7 @@ public:
                     m_colors[i] = materials.material(i).diffuse;
                 }
             }
-            m_objet[i].create(mesh);
+            m_objet[i].create(mesh,mesh2);
 
             mesh.bounds(pmin, pmax);
 
@@ -179,8 +196,6 @@ public:
         //m_camera.lookat(pmin,pmax);
         //m_camera.lookat(pmin2,pmax2);
 
-        printf("pmin %d", pmin);
-        printf("pmax %d", pmax);
         // etape 3 : charger une texture a aprtir d'un fichier .bmp, .jpg, .png, .tga, etc, utilise read_image( ) et sdl_image
         /*
     openGL peut utiliser plusieurs textures simultanement pour dessiner un m_objet, il faut les numeroter.
@@ -263,9 +278,22 @@ public:
             location = glGetUniformLocation(m_program, "mvpMatrix");
             glUniformMatrix4fv(location, 1, GL_TRUE, mvp.buffer());
             //program_uniform(m_program, "mvMatrix", mv.buffer());
-
             location = glGetUniformLocation(m_program, "mvMatrix");
             glUniformMatrix4fv(location, 1, GL_TRUE, mv.buffer());
+
+            location = glGetUniformLocation(m_program, "view");
+            glUniformMatrix4fv(location, 1, GL_TRUE, view.buffer());
+
+            location = glGetUniformLocation(m_program, "model");
+            glUniformMatrix4fv(location, 1, GL_TRUE, m_model[i * j + j].buffer());
+
+            location = glGetUniformLocation(m_program, "projection");
+            glUniformMatrix4fv(location, 1, GL_TRUE, projection.buffer());
+
+            //program_uniform(m_program, "temps", );
+            location = glGetUniformLocation(m_program, "temps");
+            glUniform1f( location,((float) ((int) global_time()%1000))/1000);
+            //printf("temps_ecoulé = %f",((float) ((int) global_time()%1000))/1000);          
 
             //color
             //program_uniform(m_program, "color", vec4(0, 1, 0, 1));
@@ -293,11 +321,12 @@ public:
 }
 
 protected:
-    int l = 4;
-    int w = 4;
+    int l = 2;
+    int w = 2;
     int lon = l * w;
-    Transform m_model[4 * 4];
-    Buffers m_objet[4 * 4];
+    Transform m_model[2 * 2];
+    Buffers m_objet[2 * 2];
+    Buffers m_objet2[2 * 2];
     Orbiter m_camera;
     GLuint m_texture0;
     GLuint m_texture1;

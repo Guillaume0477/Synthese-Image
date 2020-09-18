@@ -3,13 +3,20 @@
 #version 330
 
 #ifdef VERTEX_SHADER
-layout(location= 0) in vec3 position;
-layout(location= 1) in vec2 texcoord;
-layout(location= 2) in vec3 normal;
-layout(location= 3) in uint material;
+layout(location= 0) in vec3 position1;
+layout(location= 1) in vec3 position2;
+layout(location= 2) in vec2 texcoord;
+layout(location= 3) in vec3 normal1;
+layout(location= 4) in vec3 normal2;
+layout(location= 5) in uint material;
 
 uniform mat4 mvpMatrix;
 uniform mat4 mvMatrix;
+uniform mat4 view;
+uniform mat4 model;
+uniform mat4 projection;
+
+uniform float temps;
 
 out vec3 vertex_position;
 out vec2 vertex_texcoord;
@@ -20,12 +27,18 @@ flat out uint vertex_material;
 
 void main( )
 {
-    gl_Position= mvpMatrix * vec4(position, 1);
+    vec4 p1=mvMatrix * vec4(position1, 1);
+    vec4 p2=mvMatrix * vec4(position2, 1);
+    vec4 position3 = p1*(1-cos(temps))+p2;
+    vec4 position4 = projection*position3;
+    gl_Position=position4;// mvpMatrix * vec4(position, 1);
     
     // position et normale dans le repere camera
-    vertex_position= vec3(mvMatrix * vec4(position, 1));
-    vertex_texcoord= texcoord;
-    vertex_normal= mat3(mvMatrix) * normal;
+    vertex_position= vec3(position3);
+    //vertex_texcoord= texcoord;
+
+    vec3 normal=normal1*(1-cos(temps))+normal2;
+    vertex_normal= mat3(mvMatrix) * normal1;
     // ... comme d'habitude
     
     // et transmet aussi l'indice de la matiere au fragment shader...
@@ -57,10 +70,11 @@ void main( )
     
     // recupere la couleur de la matiere du triangle, en fonction de son indice.
     vec4 colorm= materials[vertex_material];
-    vec4 color0= texture(texture0, vertex_texcoord);
-    vec4 color1= texture(texture1, vertex_texcoord);
-
-    fragment_color= color0 * color1 * colorm * cos_theta;
+    //vec4 color0= texture(texture0, vertex_texcoord);
+    //vec4 color1= texture(texture1, vertex_texcoord);
+    //fragment_color= vec4(1, 0.5, 0, 1);
+    //fragment_color= color0 * color1 * colorm * cos_theta;
+    fragment_color= colorm * cos_theta;
 }
 
 #endif

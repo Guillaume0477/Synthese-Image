@@ -34,7 +34,7 @@ struct Buffers
         // cree et initialise le buffer: conserve la positions des sommets
         glGenBuffers(1, &vertex_buffer);
         glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
-        size_t size = mesh.vertex_buffer_size() + mesh2.vertex_buffer_size() + mesh.texcoord_buffer_size() + mesh.normal_buffer_size()+ mesh2.normal_buffer_size() + mesh.vertex_count() * sizeof(unsigned char);
+        size_t size = mesh.vertex_buffer_size() + mesh2.vertex_buffer_size() + mesh.texcoord_buffer_size() + mesh2.texcoord_buffer_size() + mesh.normal_buffer_size()+ mesh2.normal_buffer_size() + mesh.vertex_count() * sizeof(unsigned char);
         glBufferData(GL_ARRAY_BUFFER, size, nullptr, GL_STATIC_DRAW);
 
         // cree et configure le vertex array object: conserve la description des attributs de sommets
@@ -76,21 +76,29 @@ struct Buffers
         glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, /* stride */ 0, (const GLvoid *)offset);
         glEnableVertexAttribArray(2);
 
+        // transfere les texcoords des sommets2
+        offset = offset + size;
+        size = mesh2.texcoord_buffer_size();
+        glBufferSubData(GL_ARRAY_BUFFER, offset, size, mesh2.texcoord_buffer());
+        // et configure l'attribut 1, vec2 texcoord
+        glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, /* stride */ 0, (const GLvoid *)offset);
+        glEnableVertexAttribArray(3);
+
         // transfere les normales des sommets
         offset = offset + size;
         size = mesh.normal_buffer_size();
         glBufferSubData(GL_ARRAY_BUFFER, offset, size, mesh.normal_buffer());
         // et configure l'attribut 2, vec3 normal
-        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, /* stride */ 0, (const GLvoid *)offset);
-        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, /* stride */ 0, (const GLvoid *)offset);
+        glEnableVertexAttribArray(4);
 
         // transfere les normales des sommets2
         offset = offset + size;
         size = mesh2.normal_buffer_size();
         glBufferSubData(GL_ARRAY_BUFFER, offset, size, mesh2.normal_buffer());
         // et configure l'attribut 2, vec3 normal
-        glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, /* stride */ 0, (const GLvoid *)offset);
-        glEnableVertexAttribArray(4);
+        glVertexAttribPointer(5, 3, GL_FLOAT, GL_FALSE, /* stride */ 0, (const GLvoid *)offset);
+        glEnableVertexAttribArray(5);
 
         // transfere les indices materiel
         offset = offset + size;
@@ -108,8 +116,8 @@ struct Buffers
         }
 
         glBufferSubData(GL_ARRAY_BUFFER, offset, size, buffer.data());
-        glVertexAttribIPointer(5, 1, GL_UNSIGNED_BYTE, 0, (const void *)offset);
-        glEnableVertexAttribArray(5);
+        glVertexAttribIPointer(6, 1, GL_UNSIGNED_BYTE, 0, (const void *)offset);
+        glEnableVertexAttribArray(6);
 
         // conserve le nombre de sommets
         vertex_count = mesh.vertex_count();
@@ -324,7 +332,7 @@ public:
             location = glGetUniformLocation(m_program, "temps");
             float time = global_time();
             glUniform1f( location,((float) ((int) (frame_s*time)%1000))/1000 );
-            printf("temps_ecoulé = %f \n",((float) ((int) (frame_s*time)%1000))/1000 );          
+            //printf("temps_ecoulé = %f \n",((float) ((int) (frame_s*time)%1000))/1000 );          
 
             //color
             //program_uniform(m_program, "color", vec4(0, 1, 0, 1));
@@ -337,7 +345,7 @@ public:
             glUniform4fv(location, m_colors.size(), &m_colors[0].r);
             
             int k_frame = (int) (frame_s*time)%(frame_s*1000)/1000;
-            printf("frame = %d \n", k_frame);
+            //printf("frame = %d \n", k_frame);
             //k_frame = 3;
             glBindVertexArray(m_objet[i * j + j][k_frame].vao);
             glDrawArrays(GL_TRIANGLES, 0, m_objet[i * j + j][k_frame].vertex_count);
@@ -355,12 +363,11 @@ public:
 }
 
 protected:
-    int l = 2;
-    int w = 2;
-    int lon = l * w;
+    const static int l = 7;
+    const static int w = 7;
     const static int frame_s = 23;
-    Transform m_model[2 * 2];
-    Buffers m_objet[2 * 2][frame_s];
+    Transform m_model[l * w];
+    Buffers m_objet[l * w][frame_s];
     Orbiter m_camera;
     GLuint m_texture0;
     GLuint m_texture1;

@@ -29,12 +29,14 @@ void main( )
 {
     vec4 p1=mvMatrix * vec4(position1, 1);
     vec4 p2=mvMatrix * vec4(position2, 1);
-    vec4 position3 = p1*(1-cos(temps))+p2;
+    vec4 position3 = p1*(1-sin(temps))+p2*sin(temps);
     vec4 position4 = projection*position3;
     gl_Position=position4;// mvpMatrix * vec4(position, 1);
+    //gl_Position = mvpMatrix * vec4(position1, 1);
     
     // position et normale dans le repere camera
     vertex_position= vec3(position3);
+    //vertex_position= vec3(mvMatrix * vec4(position1, 1));
     //vertex_texcoord= texcoord;
 
     vec3 normal=normal1*(1-cos(temps))+normal2;

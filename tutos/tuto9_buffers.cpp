@@ -9,6 +9,7 @@
 #include "program.h"
 #include "uniforms.h"
 #include "draw.h"
+#include <stdio.h>
 
 #include "app.h" // classe Application a deriver
 
@@ -142,25 +143,52 @@ public:
         Point pmin, pmax;
         for (int i = 0; i < l * w; i++)
         {
-            Mesh mesh = read_mesh("data/Robot/Robot_000002.obj");
-            Mesh mesh2 = read_mesh("data/Robot/Robot_000005.obj");
-            if (i == 0) // tous les m_objet sont identiques (meme matieres)
-            {
-                // recupere les matieres.
-                // le shader declare un tableau de 16 matieres
-                m_colors.resize(16);
-
-                // copier les matieres utilisees
-                const Materials &materials = mesh.materials();
-                assert(materials.count() <= int(m_colors.size()));
-                for (int i = 0; i < materials.count(); i++)
-                {
-                    m_colors[i] = materials.material(i).diffuse;
+            for (int k = 0; k < frame_s; k++) {
+                char str_k[30];
+                char str_k2[30];
+                printf("\n CHHAAR : %s : %s : k = %d \n", str_k, str_k2, k);
+                if((k+1)>=10){
+                    sprintf(str_k, "data/Robot/Robot_0000%d.obj", (k%frame_s+1));
                 }
-            }
-            m_objet[i].create(mesh,mesh2);
+                else{
+                    sprintf(str_k, "data/Robot/Robot_00000%d.obj", (k%frame_s+1));
+                }
+                if(((k+1)%frame_s+1)>=10){
+                    sprintf(str_k2, "data/Robot/Robot_0000%d.obj", (k+1)%frame_s+1);
+                }
+                else{
+                    sprintf(str_k2, "data/Robot/Robot_00000%d.obj", (k+1)%frame_s+1);
+                }
 
-            mesh.bounds(pmin, pmax);
+ 
+
+                Mesh mesh = read_mesh(str_k);
+                Mesh mesh2 = read_mesh(str_k2);
+
+                
+
+                if ((i == 0) && (k==0)) // tous les m_objet sont identiques (meme matieres)
+                {
+                    // recupere les matieres.
+                    // le shader declare un tableau de 16 matieres
+                    m_colors.resize(16);
+
+                    // copier les matieres utilisees
+                    const Materials &materials = mesh.materials();
+                    assert(materials.count() <= int(m_colors.size()));
+                    for (int i = 0; i < materials.count(); i++)
+                    {
+                        m_colors[i] = materials.material(i).diffuse;
+                    }
+                    mesh.bounds(pmin, pmax);
+                }
+                m_objet[i][k].create(mesh,mesh2);
+                
+                
+
+            }
+
+            
 
             /*glGenBuffers(1, &vertex_buffer);
          glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
@@ -226,7 +254,9 @@ public:
         release_program(m_program);
         for (int i = 0; i < 1; i++)
         {
-            m_objet[i].release();
+            for (int k = 0; k < 2 * w; k++) {
+                m_objet[i][k].release();
+            }
         }
         glDeleteTextures(1, &m_texture0);
         glDeleteTextures(1, &m_texture1);
@@ -292,8 +322,9 @@ public:
 
             //program_uniform(m_program, "temps", );
             location = glGetUniformLocation(m_program, "temps");
-            glUniform1f( location,((float) ((int) global_time()%1000))/1000);
-            //printf("temps_ecoulé = %f",((float) ((int) global_time()%1000))/1000);          
+            float time = global_time();
+            glUniform1f( location,((float) ((int) (frame_s*time)%1000))/1000 );
+            printf("temps_ecoulé = %f \n",((float) ((int) (frame_s*time)%1000))/1000 );          
 
             //color
             //program_uniform(m_program, "color", vec4(0, 1, 0, 1));
@@ -304,9 +335,12 @@ public:
 
             location = glGetUniformLocation(m_program, "materials");
             glUniform4fv(location, m_colors.size(), &m_colors[0].r);
-
-            glBindVertexArray(m_objet[i * j + j].vao);
-            glDrawArrays(GL_TRIANGLES, 0, m_objet[i * j + j].vertex_count);
+            
+            int k_frame = (int) (frame_s*time)%(frame_s*1000)/1000;
+            printf("frame = %d \n", k_frame);
+            //k_frame = 3;
+            glBindVertexArray(m_objet[i * j + j][k_frame].vao);
+            glDrawArrays(GL_TRIANGLES, 0, m_objet[i * j + j][k_frame].vertex_count);
 
             //m_objet[i*j+j].draw(m_groups[k].first, m_groups[k].n, m_program, /* use position */ true, /* use texcoord */ true, /* use normal */ false, /* use color */ false, /* use material index*/ false);
         }
@@ -324,9 +358,9 @@ protected:
     int l = 2;
     int w = 2;
     int lon = l * w;
+    const static int frame_s = 23;
     Transform m_model[2 * 2];
-    Buffers m_objet[2 * 2];
-    Buffers m_objet2[2 * 2];
+    Buffers m_objet[2 * 2][frame_s];
     Orbiter m_camera;
     GLuint m_texture0;
     GLuint m_texture1;

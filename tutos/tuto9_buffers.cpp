@@ -297,6 +297,8 @@ public:
         // deplace le point de rotation
         m_camera.translation((float)mx / (float)window_width(), (float)my / (float)window_height());
 
+    float time = global_time(); //same time for all robots
+
     for (int i = 0; i < l; i++)
     {
         for (int j = 0; j < w; j++)
@@ -330,9 +332,9 @@ public:
 
             //program_uniform(m_program, "temps", );
             location = glGetUniformLocation(m_program, "temps");
-            float time = global_time();
+
             glUniform1f( location,((float) ((int) (frame_s*time)%1000))/1000 );
-            //printf("temps_ecoulé = %f \n",((float) ((int) (frame_s*time)%1000))/1000 );          
+       
 
             //color
             //program_uniform(m_program, "color", vec4(0, 1, 0, 1));
@@ -344,8 +346,7 @@ public:
             location = glGetUniformLocation(m_program, "materials");
             glUniform4fv(location, m_colors.size(), &m_colors[0].r);
             
-            int k_frame = (int) (frame_s*time)%(frame_s*1000)/1000;
-            //printf("frame = %d \n", k_frame);
+            int k_frame = (int) (frame_s*time/1000) % frame_s;//(int) (time)%(frame_s*1000)/1000;
             //k_frame = 3;
             glBindVertexArray(m_objet[i * j + j][k_frame].vao);
             glDrawArrays(GL_TRIANGLES, 0, m_objet[i * j + j][k_frame].vertex_count);
@@ -363,9 +364,10 @@ public:
 }
 
 protected:
-    const static int l = 7;
-    const static int w = 7;
+    const static int l = 11;
+    const static int w = 11 ;
     const static int frame_s = 23;
+    const static int frame_n = 23;
     Transform m_model[l * w];
     Buffers m_objet[l * w][frame_s];
     Orbiter m_camera;

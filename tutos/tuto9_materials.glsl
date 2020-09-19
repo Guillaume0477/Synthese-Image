@@ -30,7 +30,7 @@ void main( )
 {
     vec4 p1=mvMatrix * vec4(position1, 1);
     vec4 p2=mvMatrix * vec4(position2, 1);
-    vec4 position3 = p1*(1-sin(temps))+p2*sin(temps);
+    vec4 position3 = p1*(1-temps)+p2*temps;
     vec4 position4 = projection*position3;
     gl_Position=position4;// mvpMatrix * vec4(position, 1); //ok
     //gl_Position = mvpMatrix * vec4(position1, 1);
@@ -38,9 +38,9 @@ void main( )
     // position et normale dans le repere camera
     vertex_position= vec3(position3); //ok
     //vertex_position= vec3(mvMatrix * vec4(position1, 1));
-    vertex_texcoord= texcoord1*(1-sin(temps))+sin(temps)*texcoord2; // pas ok
+    vertex_texcoord= texcoord1*(1-temps)+temps*texcoord2; // pas ok
 
-    vec3 normal=normal1*(1-sin(temps))+sin(temps)*normal2; //ok
+    vec3 normal=normal1*(1-temps)+temps*normal2; //ok
     vertex_normal= mat3(mvMatrix) * normal;
     // ... comme d'habitude
     
@@ -77,7 +77,7 @@ void main( )
     vec4 color1= texture(texture1, vertex_texcoord);
     //fragment_color= vec4(1, 0.5, 0, 1);
     //fragment_color= color0 * color1 * colorm * cos_theta;
-    fragment_color= colorm * cos_theta;
+    fragment_color= colorm * cos_theta * vec4(0.486, 0.988, 0, 1);
 }
 
 #endif

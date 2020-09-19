@@ -347,9 +347,9 @@ public:
             glUniform4fv(location, m_colors.size(), &m_colors[0].r);
             
             int k_frame = (int) (frame_s*time/1000) % frame_s;//(int) (time)%(frame_s*1000)/1000;
-            //k_frame = 3;
-            glBindVertexArray(m_objet[i * j + j][k_frame].vao);
-            glDrawArrays(GL_TRIANGLES, 0, m_objet[i * j + j][k_frame].vertex_count);
+            //k_frame = 3;(i * j + j)
+            glBindVertexArray(m_objet[i * j + j][(k_frame+(i * j + j))%23].vao);
+            glDrawArrays(GL_TRIANGLES, 0, m_objet[i * j + j][(k_frame+(i * j + j))%23].vertex_count);
 
             //m_objet[i*j+j].draw(m_groups[k].first, m_groups[k].n, m_program, /* use position */ true, /* use texcoord */ true, /* use normal */ false, /* use color */ false, /* use material index*/ false);
         }

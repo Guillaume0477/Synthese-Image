@@ -72,9 +72,9 @@ void main( )
     float cos_theta= max(0, dot(n, l));
     
     // recupere la couleur de la matiere du triangle, en fonction de son indice.
-    int one = int(vertex_material);
+    int int_vertex_material = int(vertex_material);
     vec4 colorm= materials[vertex_material];
-    if ( 1 == one){
+    if ( 1 == int_vertex_material){
         colorm = colorm * vec4(0.486, 0.988, 0, 1);
     } 
     vec4 color0= texture(texture0, vertex_texcoord);

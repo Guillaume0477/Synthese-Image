@@ -1,6 +1,8 @@
 
 //! \file tuto9_buffers.cpp utilisation d'un shader 'utilisateur' pour afficher un m_objet Mesh + creation des buffers / vertex array object
 
+#include <chrono>
+
 #include "mat.h"
 #include "mesh.h"
 #include "wavefront.h"
@@ -12,6 +14,7 @@
 #include <stdio.h>
 
 #include "app.h" // classe Application a deriver
+#include "text.h"
 
 struct Buffers
 {
@@ -135,7 +138,10 @@ class TP : public App
 {
 public:
     // constructeur : donner les dimensions de l'image, et eventuellement la version d'openGL.
-    TP() : App(1024, 640) {}
+    TP() : App(1024, 640) {
+        // desactive vsync pour les mesures de temps
+        SDL_GL_SetSwapInterval(0);
+    }
 
     int init()
     {
@@ -170,12 +176,12 @@ public:
 
  
 
-                //Mesh mesh = read_mesh(str_k);
-                //Mesh mesh2 = read_mesh(str_k2);
+                Mesh mesh = read_mesh(str_k);
+                Mesh mesh2 = read_mesh(str_k2);
 
 
-                Mesh mesh = read_mesh("data/cube.obj");
-                Mesh mesh2 = read_mesh("data/cube.obj");
+                //Mesh mesh = read_mesh("data/cube.obj");
+                //Mesh mesh2 = read_mesh("data/cube.obj");
                 
 
                 if ((i == 0) && (k==0)) // tous les m_objet sont identiques (meme matieres)
@@ -325,6 +331,13 @@ public:
         glUseProgram(0);
 
 
+        // mesure du temps gpu de glDraw
+        glGenQueries(1, &m_time_query);
+
+        // affichage du temps  dans la fenetre
+        m_console= create_text();
+
+
         // etat openGL par defaut
         glClearColor(0.2f, 0.2f, 0.2f, 1.f); // couleur par defaut de la fenetre
 
@@ -383,6 +396,16 @@ public:
     else if (mb & SDL_BUTTON(2)) // le bouton du milieu est enfonce
         // deplace le point de rotation
         m_camera.translation((float)mx / (float)window_width(), (float)my / (float)window_height());
+
+         
+    // mesure le temps d'execution du draw pour le gpu
+    glBeginQuery(GL_TIME_ELAPSED, m_time_query);
+    
+    // mesure le temps d'execution du draw pour le cpu
+    // utilise std::chrono pour mesurer le temps cpu 
+    std::chrono::high_resolution_clock::time_point cpu_start= std::chrono::high_resolution_clock::now();
+         
+
 
     float time = global_time(); //same time for all robots
 
@@ -468,10 +491,48 @@ public:
     // passer la texture en parametre
     //draw(m_objet, Translation(-2, 0, 0), m_camera, texture);
     //draw(m_objet2, m_model, m_camera, texture);
+
+    std::chrono::high_resolution_clock::time_point cpu_stop= std::chrono::high_resolution_clock::now();
+    // conversion des mesures en duree...
+    int cpu_time= std::chrono::duration_cast<std::chrono::microseconds>(cpu_stop - cpu_start).count();
+    
+    glEndQuery(GL_TIME_ELAPSED);
+
+    /* recuperer le resultat de la requete time_elapsed, il faut attendre que le gpu ait fini de dessiner...
+        utilise encore std::chrono pour mesurer le temps d'attente.
+    */
+    std::chrono::high_resolution_clock::time_point wait_start= std::chrono::high_resolution_clock::now();
+    
+    // attendre le resultat de la requete
+    GLint64 gpu_time= 0;
+    glGetQueryObjecti64v(m_time_query, GL_QUERY_RESULT, &gpu_time);
+
+    std::chrono::high_resolution_clock::time_point wait_stop= std::chrono::high_resolution_clock::now();
+    int wait_time= std::chrono::duration_cast<std::chrono::microseconds>(wait_stop - wait_start).count();
+
+    // affiche le temps mesure, et formate les valeurs... c'est un peu plus lisible.
+    clear(m_console);
+    //if(mode == 0) printf(m_console, 0, 0, "mode 0 : 1 draw");
+    //if(mode == 1) printf(m_console, 0, 0, "mode 1 : 25 draws");
+    //if(mode == 2) printf(m_console, 0, 0, "mode 2 : 1 draw / 25 instances");
+    printf(m_console, 0, 1, "cpu  %02dms %03dus", int(cpu_time / 1000), int(cpu_time % 1000));
+    printf(m_console, 0, 2, "gpu  %02dms %03dus", int(gpu_time / 1000000), int((gpu_time / 1000) % 1000));
+    printf(m_console, 0, 3, "wait %02dms %03dus", int(wait_time / 1000), int(wait_time % 1000));
+    
+    // affiche le texte dans la fenetre de l'application, utilise console.h
+    draw(m_console, window_width(), window_height());
+
+    // affiche le temps dans le terminal 
+    printf("cpu  %02dms %03dus  ", int(cpu_time / 1000), int(cpu_time % 1000));
+    printf("gpu  %02dms %03dus\n", int(gpu_time / 1000000), int((gpu_time / 1000) % 1000));
+
     return 1;
 }
 
 protected:
+    GLuint m_time_query;
+    Text m_console;
+
     const static int l = 11;
     const static int w = 11 ;
     const static int frame_s = 23;

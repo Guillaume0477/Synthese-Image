@@ -119,7 +119,7 @@ struct Buffers
         glVertexAttribIPointer(6, 1, GL_UNSIGNED_BYTE, 0, (const void *)offset);
         glEnableVertexAttribArray(6);
 
-        // conserve le nombre de sommets
+        // conserve le nombre de sommetsglEnableVertexAttribArray(6);
         vertex_count = mesh.vertex_count();
     }
 
@@ -173,6 +173,9 @@ public:
                 Mesh mesh = read_mesh(str_k);
                 Mesh mesh2 = read_mesh(str_k2);
 
+
+                //Mesh mesh = read_mesh("data/cube.obj");
+                //Mesh mesh2 = read_mesh("data/cube.obj");
                 
 
                 if ((i == 0) && (k==0)) // tous les m_objet sont identiques (meme matieres)
@@ -241,17 +244,41 @@ public:
     l'exemple cree la texture sur l'unite 0 avec les parametres par defaut
  */
 
-        //textures
+
+
+     // etape 3 : sampler, parametres de filtrage des textures
+        glGenSamplers(1, &sampler);
+
+        glSamplerParameteri(sampler, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glSamplerParameteri(sampler, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glSamplerParameteri(sampler, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glSamplerParameteri(sampler, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        
+        
+             // etape 4 : creation des textures
+     /* utilise les utilitaires de texture.h
+      */
         m_texture0 = read_texture(0, "data/debug2x2red.png");
         m_texture1 = read_texture(1, "data/pacman.png");
+
+        // nettoyage
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glUseProgram(0);
+
 
         // etat openGL par defaut
         glClearColor(0.2f, 0.2f, 0.2f, 1.f); // couleur par defaut de la fenetre
 
+
+
         // etape 3 : configuration du pipeline.
-        glClearDepth(3.f);       // profondeur par defaut
+        glClearDepth(1.f);       // profondeur par defaut
         glDepthFunc(GL_LESS);    // ztest, conserver l'intersection la plus proche de la m_camera
         glEnable(GL_DEPTH_TEST); // activer le ztest
+
+        glFrontFace(GL_CCW);
+        glCullFace(GL_BACK);
+        glEnable(GL_CULL_FACE);
 
         return 0; // ras, pas d'erreur
     }
@@ -266,6 +293,7 @@ public:
                 m_objet[i][k].release();
             }
         }
+        glDeleteSamplers(1, &sampler);
         glDeleteTextures(1, &m_texture0);
         glDeleteTextures(1, &m_texture1);
         return 0;
@@ -340,8 +368,24 @@ public:
             //program_uniform(m_program, "color", vec4(0, 1, 0, 1));
 
             //textures
-            program_use_texture(m_program, "texture0", 0, m_texture0);
-            program_use_texture(m_program, "texture1", 1, m_texture1);
+            // texture et parametres de filtrage de la texture
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, m_texture0);
+            glBindSampler(0, sampler);
+        
+            glActiveTexture(GL_TEXTURE0 +1);
+            glBindTexture(GL_TEXTURE_2D, m_texture1);
+            glBindSampler(1, sampler);
+
+            // uniform sampler2D declares par le fragment shader
+            location= glGetUniformLocation(m_program, "texture0");
+            glUniform1i(location, 0);
+        
+            location= glGetUniformLocation(m_program, "texture1");
+            glUniform1i(location, 1);
+
+            //program_use_texture(m_program, "texture0", m_texture0, sampler);
+            //program_use_texture(m_program, "texture1", m_texture1, sampler);
 
             location = glGetUniformLocation(m_program, "materials");
             glUniform4fv(location, m_colors.size(), &m_colors[0].r);
@@ -352,6 +396,11 @@ public:
             glDrawArrays(GL_TRIANGLES, 0, m_objet[i * j + j][(k_frame+(i * j + j))%23].vertex_count);
 
             //m_objet[i*j+j].draw(m_groups[k].first, m_groups[k].n, m_program, /* use position */ true, /* use texcoord */ true, /* use normal */ false, /* use color */ false, /* use material index*/ false);
+
+            glBindTexture(GL_TEXTURE_2D, 0);
+            glBindSampler(0, 0);
+            glUseProgram(0);
+            glBindVertexArray(0);
         }
     }
     //CHANGE
@@ -373,6 +422,7 @@ protected:
     Orbiter m_camera;
     GLuint m_texture0;
     GLuint m_texture1;
+    GLuint sampler;
     std::vector<Color> m_colors;
     GLuint m_program;
 };

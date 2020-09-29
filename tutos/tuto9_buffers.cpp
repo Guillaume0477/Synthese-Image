@@ -119,7 +119,7 @@ struct Buffers
         glVertexAttribIPointer(6, 1, GL_UNSIGNED_BYTE, 0, (const void *)offset);
         glEnableVertexAttribArray(6);
 
-        // conserve le nombre de sommetsglEnableVertexAttribArray(6);
+        // conserve le nombre de sommets
         vertex_count = mesh.vertex_count();
     }
 
@@ -170,12 +170,12 @@ public:
 
  
 
-                Mesh mesh = read_mesh(str_k);
-                Mesh mesh2 = read_mesh(str_k2);
+                //Mesh mesh = read_mesh(str_k);
+                //Mesh mesh2 = read_mesh(str_k2);
 
 
-                //Mesh mesh = read_mesh("data/cube.obj");
-                //Mesh mesh2 = read_mesh("data/cube.obj");
+                Mesh mesh = read_mesh("data/cube.obj");
+                Mesh mesh2 = read_mesh("data/cube.obj");
                 
 
                 if ((i == 0) && (k==0)) // tous les m_objet sont identiques (meme matieres)
@@ -258,8 +258,67 @@ public:
              // etape 4 : creation des textures
      /* utilise les utilitaires de texture.h
       */
-        m_texture0 = read_texture(0, "data/debug2x2red.png");
-        m_texture1 = read_texture(1, "data/pacman.png");
+        //m_texture1 = read_texture(0, "data/debug2x2red.png");
+        
+        
+        ImageData image= read_image_data("data/debug2x2red.png");
+
+        GLenum data_format= GL_RGBA;
+        GLenum data_type= GL_UNSIGNED_BYTE;
+        if(image.channels == 3)
+            data_format= GL_RGB;
+
+        
+        glGenTextures(1, &m_texture0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, m_texture0);
+
+        glTexImage2D(GL_TEXTURE_2D, 0,
+            GL_RGBA, image.width, image.height, 0,
+            data_format, data_type, image.data() );
+    
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        ImageData image2= read_image_data("data/pacman.png");
+
+        //GLenum data_format= GL_RGBA;
+        //GLenum data_type= GL_UNSIGNED_BYTE;
+        //if(image2.channels == 3)
+        //    data_format= GL_RGB;
+
+
+        glGenTextures(1, &m_texture1);
+        glActiveTexture(GL_TEXTURE0+1);
+        glBindTexture(GL_TEXTURE_2D, m_texture1);
+    
+        //GLenum format;
+        switch(image2.channels)
+        {
+            case 1: data_format= GL_RED; break;
+            case 2: data_format= GL_RG; break;
+            case 3: data_format= GL_RGB; break;
+            case 4: data_format= GL_RGBA; break;
+            default: data_format= GL_RGBA; 
+        }
+        
+        GLenum type;
+        switch(image2.size)
+        {
+            case 1: data_type= GL_UNSIGNED_BYTE; break;
+            case 4: data_type= GL_FLOAT; break;
+            default: data_type= GL_UNSIGNED_BYTE;
+        }
+
+        glTexImage2D(GL_TEXTURE_2D, 0,
+            GL_RGBA, image2.width, image2.height, 0,
+            data_format, data_type, image2.data() );
+    
+    
+        glGenerateMipmap(GL_TEXTURE_2D);
+        
+     
+     
+        //m_texture1 = read_texture(1, "data/pacman.png");
 
         // nettoyage
         glBindTexture(GL_TEXTURE_2D, 0);
@@ -373,7 +432,7 @@ public:
             glBindTexture(GL_TEXTURE_2D, m_texture0);
             glBindSampler(0, sampler);
         
-            glActiveTexture(GL_TEXTURE0 +1);
+            glActiveTexture(GL_TEXTURE0+1);
             glBindTexture(GL_TEXTURE_2D, m_texture1);
             glBindSampler(1, sampler);
 

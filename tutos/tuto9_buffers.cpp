@@ -176,12 +176,12 @@ public:
 
  
 
-                Mesh mesh = read_mesh(str_k);
-                Mesh mesh2 = read_mesh(str_k2);
+                //Mesh mesh = read_mesh(str_k);
+                //Mesh mesh2 = read_mesh(str_k2);
 
 
-                //Mesh mesh = read_mesh("data/cube.obj");
-                //Mesh mesh2 = read_mesh("data/cube.obj");
+                Mesh mesh = read_mesh("data/cube.obj");
+                Mesh mesh2 = read_mesh("data/cube.obj");
                 
 
                 if ((i == 0) && (k==0)) // tous les m_objet sont identiques (meme matieres)
@@ -375,6 +375,9 @@ public:
     int render()
     {
     // etape 2 : dessiner l'm_objet avec opengl
+
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    glViewport(0, 0, window_width(), window_height());
 
     // on commence par effacer la fenetre avant de dessiner quelquechose
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

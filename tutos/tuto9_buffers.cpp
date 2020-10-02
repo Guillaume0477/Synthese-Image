@@ -179,11 +179,11 @@ public:
                     sprintf(str_k2, "data/Robot/Robot_00000%d.obj", (k + 1) % frame_s + 1);
                 }
 
-                //Mesh mesh = read_mesh(str_k);
-                //Mesh mesh2 = read_mesh(str_k2);
+                Mesh mesh = read_mesh(str_k);
+                Mesh mesh2 = read_mesh(str_k2);
 
-                Mesh mesh = read_mesh("data/cube.obj");
-                Mesh mesh2 = read_mesh("data/cube.obj");
+                //Mesh mesh = read_mesh("data/cube.obj");
+                //Mesh mesh2 = read_mesh("data/cube.obj");
 
                 if ((i == 0) && (k == 0)) // tous les m_objet sont identiques (meme matieres)
                 {
@@ -412,6 +412,8 @@ public:
 
         m_program = read_program("tutos/texcoords.glsl");
         program_print_errors(m_program);
+        m_program2 = read_program("tutos/tuto9_materials.glsl");
+        program_print_errors(m_program2);
 
         // mesure du temps gpu de glDraw
         glGenQueries(1, &m_time_query);
@@ -500,12 +502,14 @@ public:
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         // on efface aussi le zbuffer
         int location;
+        glUseProgram(m_program2);
+
 
         for (int i = 0; i < l; i++)
         {
             for (int j = 0; j < w; j++)
             {
-                glUseProgram(m_program);
+
 
                 m_model[i * j + j] = Translation(8 * i, 0, 8 * j);
                 //draw(m_objet[i*j+j], m_model[i*j+j], m_camera, texture);
@@ -515,24 +519,24 @@ public:
                 Transform mvp = projection * view * m_model[i * j + j];
 
                 //  . transformation : la matrice declaree dans le vertex shader s'appelle mvpMatrix
-                location = glGetUniformLocation(m_program, "mvpMatrix");
+                location = glGetUniformLocation(m_program2, "mvpMatrix");
                 glUniformMatrix4fv(location, 1, GL_TRUE, mvp.buffer());
                 //program_uniform(m_program, "mvMatrix", mv.buffer());
-                location = glGetUniformLocation(m_program, "mvMatrix");
+                location = glGetUniformLocation(m_program2, "mvMatrix");
                 glUniformMatrix4fv(location, 1, GL_TRUE, mv.buffer());
 
-                program_uniform(m_program, "normalMatrix", mv.normal());
-                location = glGetUniformLocation(m_program, "view");
+                //program_uniform(m_program2, "normalMatrix", mv.normal());
+                location = glGetUniformLocation(m_program2, "view");
                 glUniformMatrix4fv(location, 1, GL_TRUE, view.buffer());
 
-                location = glGetUniformLocation(m_program, "model");
+                location = glGetUniformLocation(m_program2, "model");
                 glUniformMatrix4fv(location, 1, GL_TRUE, m_model[i * j + j].buffer());
 
-                location = glGetUniformLocation(m_program, "projection");
+                location = glGetUniformLocation(m_program2, "projection");
                 glUniformMatrix4fv(location, 1, GL_TRUE, projection.buffer());
 
                 //program_uniform(m_program, "temps", );
-                location = glGetUniformLocation(m_program, "temps");
+                location = glGetUniformLocation(m_program2, "temps");
 
                 glUniform1f(location, ((float)((int)(frame_s * time) % 1000)) / 1000);
 
@@ -556,12 +560,12 @@ public:
                 // location= glGetUniformLocation(m_program, "texture1");
                 // glUniform1i(location, 1);
 
-                program_use_texture(m_program, "color_texture", 0, m_texture0, 0);
+                program_use_texture(m_program2, "color_texture", 0, m_texture0, 0);
 
                 //program_use_texture(m_program, "texture0", m_texture0, sampler);
                 //program_use_texture(m_program, "texture1", m_texture1, sampler);
 
-                location = glGetUniformLocation(m_program, "materials");
+                location = glGetUniformLocation(m_program2, "materials");
                 glUniform4fv(location, m_colors.size(), &m_colors[0].r);
 
                 int k_frame = (int)(frame_s * time / 1000) % frame_s; //(int) (time)%(frame_s*1000)/1000;
@@ -740,8 +744,8 @@ protected:
     GLuint m_time_query;
     Text m_console;
 
-    const static int l = 10;
-    const static int w = 10;
+    const static int l = 3;
+    const static int w = 3;
     const static int l_2 = 2;
     const static int w_2 = 2;
     const static int frame_s = 23;
@@ -765,6 +769,7 @@ protected:
     GLuint sampler;
     std::vector<Color> m_colors;
     GLuint m_program;
+    GLuint m_program2;
 };
 
 int main(int argc, char **argv)

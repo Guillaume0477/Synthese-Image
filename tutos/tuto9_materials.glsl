@@ -63,6 +63,7 @@ flat in uint vertex_material;	// !! decoration flat, le varying est marque expli
 uniform vec4 materials[MAX_MATERIALS];
 uniform sampler2D texture0;
 uniform sampler2D texture1;
+uniform sampler2D color_texture;
 
 
 void main( )
@@ -71,18 +72,23 @@ void main( )
     vec3 n= normalize(vertex_normal);
     float cos_theta= max(0, dot(n, l));
     
-    // recupere la couleur de la matiere du triangle, en fonction de son indice.
-    int int_vertex_material = int(vertex_material);
-    vec4 colorm= materials[vertex_material];
-    if ( 1 == int_vertex_material){
-        colorm = colorm * vec4(0.486, 0.988, 0, 1);
-    } 
-    vec4 color0= texture(texture0, vertex_texcoord);
-    //vec4 color1= texture(texture1, vertex_texcoord);
-    color0= color0 * 0.5 + texture(texture1, vertex_texcoord) * 0.5;
-    //fragment_color= vec4(1, 0.5, 0, 1);
-    fragment_color= color0 * colorm * cos_theta;
-    //fragment_color= colorm * cos_theta;//* vec4(0.486, 0.988, 0, 1);
+    // // recupere la couleur de la matiere du triangle, en fonction de son indice.
+    // int int_vertex_material = int(vertex_material);
+    // vec4 colorm= materials[vertex_material];
+    // if ( 1 == int_vertex_material){
+    //     colorm = colorm * vec4(0.486, 0.988, 0, 1);
+    // } 
+    // vec4 color0= texture(texture0, vertex_texcoord);
+    // //vec4 color1= texture(texture1, vertex_texcoord);
+    // color0= color0 * 0.5 + texture(texture1, vertex_texcoord) * 0.5;
+    // //fragment_color= vec4(1, 0.5, 0, 1);
+    // fragment_color= color0 * colorm * cos_theta;
+    // //fragment_color= colorm * cos_theta;//* vec4(0.486, 0.988, 0, 1);
+
+    vec4 color= texture(color_texture, vertex_texcoord);
+    fragment_color= cos_theta * color;
+
+
 }
 
 #endif

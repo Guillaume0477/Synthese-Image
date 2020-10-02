@@ -226,13 +226,56 @@ public:
 
         Point maxi = Point();
 
-        maxi(0) = (l-1)*(pmax(0))*2 + (l-1)*7*pmax(0)*2;
-        maxi(2) = (w-1)*(pmax(2))*2 + (w-1)*7*pmax(2)*2;
+        if ( l == 1 ) {
+            maxi(0) = pmax(0);
+        }
+        else
+        {
+            maxi(0) = (l-1)*(pmax(0))*2 + (l-1)*7*pmax(0)*2;
+        }
+        
+        if ( w == 1 ) {
+            maxi(2) = pmax(2);
+            printf("w\n");
+        }
+        else
+        { 
+            maxi(2) = (w-1)*(pmax(2))*2 + (w-1)*7*pmax(2)*2;
+        }
+        
+        if (( w == 1 ) && ( l == 1 )) {
+            maxi(1) = pmax(1);
+            printf("w and l\n");
+        }
+
 
         Point maxi2 = Point();// 0 0 0
-        maxi2(0) = (l_2-1)*(pmax(0))*2 + (l_2-1)*7*pmax(0)*2;
-        maxi2(2) = (w_2-1)*(pmax(2))*2 + (w_2-1)*7*pmax(2)*2;
+
+        if ( l_2 == 1 ) {
+            maxi2(0) = pmax(0);
+            printf("l_2\n");
+        }
+        else
+        { 
+            maxi2(0) = (l_2-1)*(pmax(0))*2 + (l_2-1)*7*pmax(0)*2;
+        }
+
         
+        if ( w_2 == 1 ) {
+            maxi2(2) = pmax(2);
+            printf("w_2\n");
+        }
+        else
+        { 
+            maxi2(2) = (w_2-1)*(pmax(2))*2 + (w_2-1)*7*pmax(2)*2;
+        }
+
+        if (( w_2 == 1 ) && ( l_2 == 1 )) {
+            maxi2(1) = pmax(1);
+            printf("w_2 and l_2\n");
+        }
+
+
         m_camera.lookat(pmin, maxi2);
         m_framebuffer_camera.lookat(pmin, maxi );
 
@@ -560,8 +603,6 @@ public:
 
         }
     }
-    int i=0;
-    int j=0;
 
 
     if(key_state(' '))
@@ -743,10 +784,10 @@ protected:
     GLuint m_time_query;
     Text m_console;
 
-    const static int l = 7;
-    const static int w = 7 ;
-    const static int l_2 = 3;
-    const static int w_2 = 3 ;
+    const static int l = 10;
+    const static int w = 10;
+    const static int l_2 = 2;
+    const static int w_2 = 2;
     const static int frame_s = 23;
     const static int frame_n = 23;
     Transform m_model[l * w];

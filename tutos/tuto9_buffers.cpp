@@ -152,8 +152,8 @@ public:
 
         GLuint vao;
         GLuint vertex_buffer;
-        int vertex_count;
 
+        Point pmin_frame, pmax_frame;
         Point pmin, pmax;
         for (int i = 0; i < l * w; i++)
         {
@@ -185,24 +185,100 @@ public:
                 //Mesh mesh = read_mesh("data/cube.obj");
                 //Mesh mesh2 = read_mesh("data/cube.obj");
 
-                if ((i == 0) && (k == 0)) // tous les m_objet sont identiques (meme matieres)
+                if (i == 0) // tous les m_objet sont identiques (meme matieres)
                 {
-                    // recupere les matieres.
-                    // le shader declare un tableau de 16 matieres
-                    m_colors.resize(16);
 
-                    // copier les matieres utilisees
-                    const Materials &materials = mesh.materials();
-                    assert(materials.count() <= int(m_colors.size()));
-                    for (int i = 0; i < materials.count(); i++)
+                    mesh.bounds(pmin_frame, pmax_frame);
+                    for (int j=0; j<3; j++)
                     {
-                        m_colors[i] = materials.material(i).diffuse;
+                        if (pmin_frame(j)<pmin(j)){
+                            pmin(j) = pmin_frame(j);
+                        }
+                        if (pmax_frame(j)>pmax(j)){
+                            pmax(j) = pmax_frame(j);
+                        }
+
                     }
-                    mesh.bounds(pmin, pmax);
+                    if (k == 0) {
+                        // recupere les matieres.
+                        // le shader declare un tableau de 16 matieres
+                        m_colors.resize(16);
+
+                        // copier les matieres utilisees
+                        const Materials &materials = mesh.materials();
+                        assert(materials.count() <= int(m_colors.size()));
+                        for (int j = 0; j < materials.count(); j++)
+                        {
+                            m_colors[j] = materials.material(j).diffuse;
+                        }
+                    }
                 }
                 m_objet[i][k].create(mesh, mesh2);
             }
+        }
 
+        Point pmin_frame_2, pmax_frame_2;
+        Point pmin_2, pmax_2;
+        for (int i = 0; i < l_2 * w_2; i++)
+        {
+            for (int k = 0; k < frame_s; k++)
+            {
+                char str_k[30];
+                char str_k2[30];
+                printf("\n CHHAAR : %s : %s : k = %d \n", str_k, str_k2, k);
+                if ((k + 1) >= 10)
+                {
+                    sprintf(str_k, "data/Robot/Robot_0000%d.obj", (k % frame_s + 1));
+                }
+                else
+                {
+                    sprintf(str_k, "data/Robot/Robot_00000%d.obj", (k % frame_s + 1));
+                }
+                if (((k + 1) % frame_s + 1) >= 10)
+                {
+                    sprintf(str_k2, "data/Robot/Robot_0000%d.obj", (k + 1) % frame_s + 1);
+                }
+                else
+                {
+                    sprintf(str_k2, "data/Robot/Robot_00000%d.obj", (k + 1) % frame_s + 1);
+                }
+
+                //Mesh mesh = read_mesh(str_k);
+                //Mesh mesh2 = read_mesh(str_k2);
+
+                Mesh mesh = read_mesh("data/cube.obj");
+                Mesh mesh2 = read_mesh("data/cube.obj");
+
+                if (i == 0) // tous les m_objet sont identiques (meme matieres)
+                {
+                //     // recupere les matieres.
+                //     // le shader declare un tableau de 16 matieres
+                //     m_colors.resize(16);
+
+                //     // copier les matieres utilisees
+                //     const Materials &materials = mesh.materials();
+                //     assert(materials.count() <= int(m_colors.size()));
+                //     for (int i = 0; i < materials.count(); i++)
+                //     {
+                //         m_colors[i] = materials.material(i).diffuse;
+                //     }
+                //     mesh.bounds(pmin, pmax);
+                    mesh.bounds(pmin_frame_2, pmax_frame_2);
+                    for (int j=0; j<3; j++)
+                    {
+                        if (pmin_frame_2(j)<pmin_2(j)){
+                            pmin_2(j) = pmin_frame_2(j);
+                        }
+                        if (pmax_frame_2(j)>pmax_2(j)){
+                            pmax_2(j) = pmax_frame_2(j);
+                        }
+
+                    }
+                }
+                
+                m_objet_2[i][k].create(mesh, mesh2);
+            }
+        }
             /*glGenBuffers(1, &vertex_buffer);
          glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
          glBufferData(GL_ARRAY_BUFFER, m_objet[i].vertex_buffer_size(), m_objet[i].vertex_buffer(), GL_STATIC_DRAW);
@@ -216,66 +292,35 @@ public:
          // conserve le nombre de sommets
          vertex_count= m_objet[i].vertex_count();
     */
-        }
+        //pmin_2(1)=pmin_2(1)-10;
 
         //mesh.bounds(pmin, pmax);
 
         Point maxi = Point();
 
-        if (l == 1)
-        {
-            maxi(0) = pmax(0);
-        }
-        else
-        {
-            maxi(0) = (l - 1) * (pmax(0)) * 2 + (l - 1) * 7 * pmax(0) * 2;
-        }
 
-        if (w == 1)
-        {
-            maxi(2) = pmax(2);
-            printf("w\n");
-        }
-        else
-        {
-            maxi(2) = (w - 1) * (pmax(2)) * 2 + (w - 1) * 7 * pmax(2) * 2;
-        }
+        maxi(0) = (l -1) * 8 + pmax(0);
+        maxi(2) = (w -1) * 8 + pmax(2);
+        maxi(1) = pmax(1);
 
-        if ((w == 1) && (l == 1))
-        {
-            maxi(1) = pmax(1);
-            printf("w and l\n");
-        }
 
         Point maxi2 = Point(); // 0 0 0
 
-        if (l_2 == 1)
-        {
-            maxi2(0) = pmax(0);
-            printf("l_2\n");
-        }
-        else
-        {
-            maxi2(0) = (l_2 - 1) * (pmax(0)) * 2 + (l_2 - 1) * 7 * pmax(0) * 2;
-        }
 
-        if (w_2 == 1)
-        {
-            maxi2(2) = pmax(2);
-            printf("w_2\n");
-        }
-        else
-        {
-            maxi2(2) = (w_2 - 1) * (pmax(2)) * 2 + (w_2 - 1) * 7 * pmax(2) * 2;
-        }
+        maxi2(0) = (l_2 -1) * 8 + pmax_2(0);
+        maxi2(2) = (w_2 -1) * 8 + pmax_2(2);
+        maxi2(1) = pmax_2(1);
 
-        if ((w_2 == 1) && (l_2 == 1))
-        {
-            maxi2(1) = pmax(1);
-            printf("w_2 and l_2\n");
-        }
 
-        m_camera.lookat(pmin, maxi2);
+
+        std::cout<< pmin(0)<<"  "<<pmin(1)<<"  "<<pmin(2)<< std::endl;
+        std::cout<< pmax(0)<<"  "<<pmax(1)<<"  "<<pmax(2)<< std::endl;
+        std::cout<< pmin_2(0)<<"  "<<pmin_2(1)<<"  "<<pmin_2(2)<< std::endl;
+        std::cout<< pmax_2(0)<<"  "<<pmax_2(1)<<"  "<<pmax_2(2)<< std::endl;
+
+
+
+        m_camera.lookat(pmin_2, maxi2);
         m_framebuffer_camera.lookat(pmin, maxi);
 
         //pmax(1) = 0;
@@ -342,8 +387,8 @@ public:
 
         // glGenerateMipmap(GL_TEXTURE_2D);
 
-        m_framebuffer_width = 512;
-        m_framebuffer_height = 512;
+        m_framebuffer_width = 1024;
+        m_framebuffer_height = 640;
 
         // etape 1 : creer une texture couleur...
         glGenTextures(1, &m_color_buffer);
@@ -615,12 +660,12 @@ public:
                 for (int j = 0; j < w_2; j++)
                 {
 
-                    m_model[i * j + j] = Translation(8 * i, 0, 8 * j);
+                    m_model_2[i * j + j] = Translation(8 * i, 0, 8 * j);
                     //draw(m_objet[i*j+j], m_model[i*j+j], m_camera, texture);
                     Transform view = m_camera.view();
                     Transform projection = m_camera.projection(window_width(), window_height(), 45);
-                    Transform mv = view * m_model[i * j + j];
-                    Transform mvp = projection * view * m_model[i * j + j];
+                    Transform mv = view * m_model_2[i * j + j];
+                    Transform mvp = projection * view * m_model_2[i * j + j];
 
                     //  . transformation : la matrice declaree dans le vertex shader s'appelle mvpMatrix
                     location = glGetUniformLocation(m_program, "mvpMatrix");
@@ -685,8 +730,8 @@ public:
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, miplevels(m_framebuffer_width, m_framebuffer_height));
                     glGenerateMipmap(GL_TEXTURE_2D);
 
-                    glBindVertexArray(m_objet[i * j + j][(k_frame + (i * j + j)) % 23].vao);
-                    glDrawArrays(GL_TRIANGLES, 0, m_objet[i * j + j][(k_frame + (i * j + j)) % 23].vertex_count);
+                    glBindVertexArray(m_objet_2[i * j + j][(k_frame + (i * j + j)) % 23].vao);
+                    glDrawArrays(GL_TRIANGLES, 0, m_objet_2[i * j + j][(k_frame + (i * j + j)) % 23].vertex_count);
                 }
             }
         }
@@ -744,14 +789,22 @@ protected:
     GLuint m_time_query;
     Text m_console;
 
-    const static int l = 3;
-    const static int w = 3;
-    const static int l_2 = 2;
-    const static int w_2 = 2;
+
+
     const static int frame_s = 23;
     const static int frame_n = 23;
+
+    //robots
+    const static int l = 3;
+    const static int w = 3;
     Transform m_model[l * w];
     Buffers m_objet[l * w][frame_s];
+
+    //on texture cube
+    const static int l_2 = 3;
+    const static int w_2 = 3;
+    Transform m_model_2[l_2 * w_2];
+    Buffers m_objet_2[l_2 * w_2][frame_s];
 
     Orbiter m_camera;
     Orbiter m_framebuffer_camera;

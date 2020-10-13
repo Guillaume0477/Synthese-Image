@@ -314,24 +314,86 @@ int main( const int argc, const char **argv )
             Point e= { (viewport*projection*view).inverse()(Point(x,y,1)) }; // extremite dans l'image
             
             Ray ray(o, e);
+            Hit hit;
             // calculer les intersections 
-            if(Hit hit= bvh.intersect(ray))
+            if(hit= bvh.intersect(ray))
             {
                 const TriangleData& triangle= mesh.triangle(hit.triangle_id);           // recuperer le triangle
                 const Material& material= mesh.triangle_material(hit.triangle_id);      // et sa matiere
                 
+                // position du point d'intersection
+                //Point p= ray.o + hit.t * ray.d;
                 Point p= point(hit, ray);               // point d'intersection
                 Vector pn= normal(hit, triangle);       // normale interpolee du triangle au point d'intersection
                 // retourne la normale pour faire face a la camera / origine du rayon...
                 if(dot(pn, ray.d) > 0)
                     pn= -pn;
                 
+                // position et emission de la source de lumiere
+                Point s= (Point(sources(0).a) + Point(sources(0).b) + Point(sources(0).c))/3.0;
+                Color emission= sources(0).emission;
+                
+                //Point p= (Point(data.a) + Point(data.b) + Point(data.c)) / 3;
+                // interpoler la normale au point d'intersection
+                //Vector pn= normal(mesh, hit);
+                // direction de p vers la source s
+                Vector l= Vector(p, s);
+
+                // visibilite entre p et s
+                float v= 1;
+
+                Ray shadow_ray(p + 0.001f * pn, l);//+ 0.001f * pn
+                shadow_ray.tmax = 1 - .001f ;//
+
+ 
+
+
+
                 // accumuler la couleur de l'echantillon
                 float cos_theta= std::max(0.f, dot(pn, normalize(-ray.d)));
-                color= color + 1.f / float(M_PI) * material.diffuse * cos_theta;
+                color= color + 1.f / float(M_PI) * material.diffuse * cos_theta ;
+
+                //     break;  // pas la peine de continuer
+
+
+                if(bvh.visible(shadow_ray) != 1)
+                {
+                    // on vient de trouver un triangle entre p et s. p est donc a l'ombre
+                    v= 0;
+
+                }
+
+                color = color * v * 4;
+
             }
-            
-            image(px, py)= Color(color, 1)*4;
+
+
+            // if(hit)
+            // {
+
+                
+            //     // visibilite entre p et s
+            //     float v= 1;
+            // #if 1
+            //     Ray shadow_ray(p + 0.001f * pn, s);
+            //     for(int i= 0; i < int(triangles.size()); i++)
+            //     {
+            //         if(triangles[i].intersect(shadow_ray, 1 - .001f))
+            //         {
+            //             // on vient de trouver un triangle entre p et s. p est donc a l'ombre
+            //             v= 0;
+            //             break;  // pas la peine de continuer
+            //         }
+            //     }
+            // #endif
+                
+            //     // calculer la lumiere reflechie vers la camera / l'origine du rayon
+            //     //float cos_theta= std::abs(dot(pn, normalize(l)));
+            //     //Color fr= diffuse_color(mesh, hit) / M_PI;
+                
+            //     //Color color= v * emission * fr * cos_theta / length2(l);
+            //     Color color = v * color;
+        image(px, py)= Color(color, 1);
         }
     }
     

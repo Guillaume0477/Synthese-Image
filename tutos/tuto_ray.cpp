@@ -328,42 +328,56 @@ int main( const int argc, const char **argv )
                 // retourne la normale pour faire face a la camera / origine du rayon...
                 if(dot(pn, ray.d) > 0)
                     pn= -pn;
+                int N_Source=2;
+                int N_point_Source=16;
+                for (int si=0;si<N_Source;si++){
+                    for (int p_si=0; p_si< N_point_Source;p_si++){
+                        // position et emission de la source de lumiere si
+                        float u1=u01(rng);
+                        float u2=u01(rng);
+
+                        //Point s= (Point(sources(si).a) + Point(sources(si).b) + Point(sources(si).c))/3.0;
+                        Point s= sources(si).sample(u1,u2);
+                        Color emission= sources(si).emission;
+                        
+                        //Point p= (Point(data.a) + Point(data.b) + Point(data.c)) / 3;
+                        // interpoler la normale au point d'intersection
+                        //Vector pn= normal(mesh, hit);
+                        // direction de p vers la source s
+                        Vector l= Vector(p, s);
+
+                        // visibilite entre p et s
+                        float v= 1;
+
+                        Ray shadow_ray(p + 0.00001f * pn, l);//+ 0.001f * pn
+                        shadow_ray.tmax = 1 - .00001f ;//
+
+        
+                        //if(bvh.visible(shadow_ray) != 1)
+                        if(Hit hit2= bvh.intersect(shadow_ray))
+                        {
+                            // on vient de trouver un triangle entre p et s. p est donc a l'ombre
+                            v= 0;
                 
-                // position et emission de la source de lumiere
-                Point s= (Point(sources(0).a) + Point(sources(0).b) + Point(sources(0).c))/3.0;
-                Color emission= sources(0).emission;
-                
-                //Point p= (Point(data.a) + Point(data.b) + Point(data.c)) / 3;
-                // interpoler la normale au point d'intersection
-                //Vector pn= normal(mesh, hit);
-                // direction de p vers la source s
-                Vector l= Vector(p, s);
+                        }
 
-                // visibilite entre p et s
-                float v= 1;
-
-                Ray shadow_ray(p + 0.001f * pn, l);//+ 0.001f * pn
-                shadow_ray.tmax = 1 - .001f ;//
-
- 
+                        Vector sn= sources(si).n;// normale du triangle au point de la source  interpolee ?
 
 
+                        // accumuler la couleur de l'echantillon
+                        float cos_theta= std::max(0.f, dot(pn, normalize(l)));
+                        float cos_theta_s= std::max(0.f, dot(sn, normalize(-l)));
+                        color= color + 1.f / float(M_PI) * material.diffuse *cos_theta_s* cos_theta * v *sources(si).pdf(s) * 1.f / (length2(l)*N_Source*N_point_Source);
 
-                // accumuler la couleur de l'echantillon
-                float cos_theta= std::max(0.f, dot(pn, normalize(-ray.d)));
-                color= color + 1.f / float(M_PI) * material.diffuse * cos_theta ;
-
-                //     break;  // pas la peine de continuer
-
-
-                if(bvh.visible(shadow_ray) != 1)
-                {
-                    // on vient de trouver un triangle entre p et s. p est donc a l'ombre
-                    v= 0;
+                        //     break;  // pas la peine de continuer
+                    }
 
                 }
-
-                color = color * v * 4;
+                float gamma = 2.2;
+                color.r=pow(color.r,1.0/gamma);
+                color.g=pow(color.g,1.0/gamma);
+                color.b=pow(color.b,1.0/gamma);
+                color =  color;
 
             }
 

@@ -252,10 +252,15 @@ struct World
 };
 
 
+
+
 int main( const int argc, const char **argv )
 {
     const char *mesh_filename= "data/cornell.obj";
+    //const char *mesh_filename= "data/emission.obj";
     const char *orbiter_filename= "data/cornell_orbiter.txt";
+    //const char *orbiter_filename= "data/emission_orbiter.txt";
+    //const char *orbiter_filename= "data/orbiter.txt";
     
     if(argc > 1) mesh_filename= argv[1];
     if(argc > 2) orbiter_filename= argv[2];
@@ -367,7 +372,7 @@ int main( const int argc, const char **argv )
                         // accumuler la couleur de l'echantillon
                         float cos_theta= std::max(0.f, dot(pn, normalize(l)));
                         float cos_theta_s= std::max(0.f, dot(sn, normalize(-l)));
-                        color= color + 1.f / float(M_PI) * material.diffuse *cos_theta_s* cos_theta * v *sources(si).pdf(s) * 1.f / (length2(l)*N_Source*N_point_Source);
+                        color= color + 1.f / float(M_PI) * material.diffuse* cos_theta_s* cos_theta * v *sources(si).pdf(s) * 1.f / (length2(l)*N_Source*N_point_Source);
 
                         //     break;  // pas la peine de continuer
                     }

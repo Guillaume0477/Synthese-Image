@@ -258,9 +258,10 @@ int main( const int argc, const char **argv )
 {
     const char *mesh_filename= "data/cornell.obj";
     //const char *mesh_filename= "data/emission.obj";
-    const char *orbiter_filename= "data/cornell_orbiter.txt";
+    //const char *orbiter_filename= "data/cornell_orbiter.txt";
     //const char *orbiter_filename= "data/emission_orbiter.txt";
     //const char *orbiter_filename= "data/orbiter.txt";
+    const char *orbiter_filename= "orbiter.txt";
     
     if(argc > 1) mesh_filename= argv[1];
     if(argc > 2) orbiter_filename= argv[2];
@@ -333,8 +334,11 @@ int main( const int argc, const char **argv )
                 // retourne la normale pour faire face a la camera / origine du rayon...
                 if(dot(pn, ray.d) > 0)
                     pn= -pn;
-                int N_Source=2;
-                int N_point_Source=16;
+
+                Color emission= material.emission;
+
+                int N_Source=sources.size();
+                int N_point_Source=2;
                 for (int si=0;si<N_Source;si++){
                     for (int p_si=0; p_si< N_point_Source;p_si++){
                         // position et emission de la source de lumiere si
@@ -343,7 +347,8 @@ int main( const int argc, const char **argv )
 
                         //Point s= (Point(sources(si).a) + Point(sources(si).b) + Point(sources(si).c))/3.0;
                         Point s= sources(si).sample(u1,u2);
-                        Color emission= sources(si).emission;
+                        Color emission_si= sources(si).emission;
+                        
                         
                         //Point p= (Point(data.a) + Point(data.b) + Point(data.c)) / 3;
                         // interpoler la normale au point d'intersection
@@ -372,7 +377,7 @@ int main( const int argc, const char **argv )
                         // accumuler la couleur de l'echantillon
                         float cos_theta= std::max(0.f, dot(pn, normalize(l)));
                         float cos_theta_s= std::max(0.f, dot(sn, normalize(-l)));
-                        color= color + 1.f / float(M_PI) * material.diffuse* cos_theta_s* cos_theta * v *sources(si).pdf(s) * 1.f / (length2(l)*N_Source*N_point_Source);
+                        color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * 1.f / (length2(l)*N_Source*N_point_Source*sources(si).pdf(s) );
 
                         //     break;  // pas la peine de continuer
                     }
@@ -382,7 +387,7 @@ int main( const int argc, const char **argv )
                 color.r=pow(color.r,1.0/gamma);
                 color.g=pow(color.g,1.0/gamma);
                 color.b=pow(color.b,1.0/gamma);
-                color =  color;
+                color =  emission + color;
 
             }
 

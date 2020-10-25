@@ -256,8 +256,8 @@ struct World
 
 int main( const int argc, const char **argv )
 {
-    const char *mesh_filename= "data/cornell.obj";
-    //const char *mesh_filename= "data/emission.obj";
+    //const char *mesh_filename= "data/cornell.obj";
+    const char *mesh_filename= "data/emission.obj";
     //const char *orbiter_filename= "data/cornell_orbiter.txt";
     //const char *orbiter_filename= "data/emission_orbiter.txt";
     //const char *orbiter_filename= "data/orbiter.txt";
@@ -280,6 +280,11 @@ int main( const int argc, const char **argv )
     // creer l'ensemble de triangles / structure acceleratrice
     BVH bvh(mesh);
     Sources sources(mesh);
+    int N_Source=sources.size();
+    std::cout<<sources.area<<std::endl;
+    std::cout<<sources(N_Source-3).area<<std::endl;
+    
+
     
     // charger la camera
     Orbiter camera;
@@ -337,57 +342,98 @@ int main( const int argc, const char **argv )
 
                 Color emission= material.emission;
 
-                int N_Source=sources.size();
-                int N_point_Source=2;
-                for (int si=0;si<N_Source;si++){
-                    for (int p_si=0; p_si< N_point_Source;p_si++){
-                        // position et emission de la source de lumiere si
-                        float u1=u01(rng);
-                        float u2=u01(rng);
 
-                        //Point s= (Point(sources(si).a) + Point(sources(si).b) + Point(sources(si).c))/3.0;
-                        Point s= sources(si).sample(u1,u2);
-                        Color emission_si= sources(si).emission;
-                        
-                        
-                        //Point p= (Point(data.a) + Point(data.b) + Point(data.c)) / 3;
-                        // interpoler la normale au point d'intersection
-                        //Vector pn= normal(mesh, hit);
-                        // direction de p vers la source s
-                        Vector l= Vector(p, s);
+                int N_point_Source=200;
+                float P_Si_float = (int) (N_Source)* u01(rng);
+                //int P_Si = (int) P_Si_float;
+                //std::cout<<P_Si_float<<" int "<<P_Si<<std::endl;
 
-                        // visibilite entre p et s
-                        float v= 1;
+                for (int ni=0; ni<N_point_Source; ni++){
+                    //
+                    // random source
+                    //
 
-                        Ray shadow_ray(p + 0.00001f * pn, l);//+ 0.001f * pn
-                        shadow_ray.tmax = 1 - .00001f ;//
+                    //int si = (int) N_Source* u01(rng);
 
-        
-                        //if(bvh.visible(shadow_ray) != 1)
-                        if(Hit hit2= bvh.intersect(shadow_ray))
-                        {
-                            // on vient de trouver un triangle entre p et s. p est donc a l'ombre
-                            v= 0;
-                
-                        }
+                    //
+                    // random source according area
+                    //
 
-                        Vector sn= sources(si).n;// normale du triangle au point de la source  interpolee ?
-
-
-                        // accumuler la couleur de l'echantillon
-                        float cos_theta= std::max(0.f, dot(pn, normalize(l)));
-                        float cos_theta_s= std::max(0.f, dot(sn, normalize(-l)));
-                        color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * 1.f / (length2(l)*N_Source*N_point_Source*sources(si).pdf(s) );
-
-                        //     break;  // pas la peine de continuer
+                    int si;
+                    int P_si = (int) sources.area*u01(rng); //entre 0 et 20000
+                    if (P_si <= 5000){ 
+                        si=N_Source-1;
                     }
+                    else if (P_si <= 10000){
+                        si=N_Source-2;
+                    }
+                    else {
+                        si = (int) (N_Source-2)* u01(rng);
+                    }
+                    //si = (int) (N_Source-2)* u01(rng);
+                    //std::cout<<si<<std::endl;
+
+                    // if (si==0) {
+                    //     printf("zeros\n\n");
+                    // }
+                    // if (si==N_Source-1) {
+                    //     printf("N_source\n\n");
+                    // }
+
+                    //std::cout<<"area"<<sources(si).area<<std::endl;
+                    // position et emission de la source de lumiere si
+                    float u1=u01(rng);
+                    float u2=u01(rng);
+
+                    //Point s= (Point(sources(si).a) + Point(sources(si).b) + Point(sources(si).c))/3.0;
+                    Point s= sources(si).sample(u1,u2);
+                    Color emission_si= sources(si).emission;
+                    
+                    
+                    //Point p= (Point(data.a) + Point(data.b) + Point(data.c)) / 3;
+                    // interpoler la normale au point d'intersection
+                    //Vector pn= normal(mesh, hit);
+                    // direction de p vers la source s
+                    Vector l= Vector(p, s);
+
+                    // visibilite entre p et s
+                    float v= 1;
+
+                    Ray shadow_ray(p + 0.0001f * pn, l);//+ 0.001f * pn
+                    shadow_ray.tmax = 1 - .0001f ;//
+
+                    //if(bvh.visible(shadow_ray) != 1)
+                    if(Hit hit2= bvh.intersect(shadow_ray))
+                    {
+                        // on vient de trouver un triangle entre p et s. p est donc a l'ombre
+                        v= 0;
+                    }
+
+                    Vector sn= sources(si).n;// normale du triangle au point de la source  interpolee ?
+
+
+                    // accumuler la couleur de l'echantillon
+                    float cos_theta= std::max(0.f, dot(pn, normalize(l)));
+                    float cos_theta_s= std::max(0.f, dot(sn, normalize(-l)));
+                    //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * 1.f / (length2(l)*N_Source*N_point_Source*sources(si).pdf(s) );
+
+                    //
+                    // random source according area
+                    //
+                    color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * 1.f / (length2(l)*N_point_Source );*
+
+                    //
+                    // occultation ambiante 
+                    //
+
+                    
 
                 }
                 float gamma = 2.2;
                 color.r=pow(color.r,1.0/gamma);
                 color.g=pow(color.g,1.0/gamma);
                 color.b=pow(color.b,1.0/gamma);
-                color =  emission + color;
+                color =  emission + color*50;
 
             }
 

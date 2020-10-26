@@ -302,6 +302,63 @@ float pdf35( const Vector& w )
     return w.z / float(M_PI);
 }
 
+Color color_direct_direction(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Mesh mesh, BVH bvh, int N_point_Source, Vector pn, Point p){
+
+    Color color= Black();
+
+    for (int ni=0; ni<N_point_Source; ni++){
+
+        float u1= u01(rng);
+        float u2= u01(rng);
+        
+        // generer une direction (dans un repere local, arbitraire)
+        Vector v= sample35(u1, u2);
+        float pdf= pdf35(v);
+        
+        // changement de repere vers la scene
+        World world(pn);
+        Vector d= world(v);
+        
+        // evaluer la visibilite
+        const float scale= 10;  
+        // le vecteur d est de longueur 1, utiliser un vecteur plus grand, en fonction du rayon de la sphere englobante de la scene
+        // rappel : on veut savoir si le point p voit le ciel... qui est a l'exterieur de la scene.
+        
+        Ray ray2(p +0.001f*pn, d * scale);
+        //ray2.tmax = 1 - .0001f ;
+        Hit hit2= bvh.intersect(ray2);
+        if(hit2 == true)
+        {
+            // pas de geometrie dans la direction d, p est donc eclaire par le ciel
+            
+            // evaluer les termes de la fonction a integrer
+            // V(p, d) == 1, puisqu'on a pas trouve d'intersection
+            float cos_theta= std::max(float(0), dot(pn, d));
+
+            //
+            // occultation ambiante 
+            //
+            //color= color + 1 / float(M_PI) * material.diffuse * cos_theta / (pdf*N_point_Source);
+
+            const Material& material2= mesh.triangle_material(hit2.triangle_id);
+            Color emission_si = material2.emission;
+
+            
+            const TriangleData& triangle2= mesh.triangle(hit2.triangle_id);
+            Vector sn= normal(hit2, triangle2);
+            Point p_sn= point(hit2, ray2);
+
+            float cos_theta_s = std::max(0.f, dot(sn, normalize(-d)));
+            //
+            // full calcul
+            //
+            color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * 1.f / (length2(p_sn-p)*N_point_Source*pdf );
+            
+        }
+    }
+    return color;
+}
+
 
 int main( const int argc, const char **argv )
 {
@@ -398,8 +455,8 @@ int main( const int argc, const char **argv )
                 //int P_Si = (int) P_Si_float;
                 //std::cout<<P_Si_float<<" int "<<P_Si<<std::endl;
 
-
-
+                color = color_direct_direction( rng, u01, material, mesh, bvh, N_point_Source,pn, p);
+/*
                 for (int ni=0; ni<N_point_Source; ni++){
 
                     float u1= u01(rng);
@@ -449,7 +506,7 @@ int main( const int argc, const char **argv )
                         
                     }
                 }
-
+*/
 
 
 /*

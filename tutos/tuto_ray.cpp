@@ -1,5 +1,7 @@
 
 #include <cfloat>
+#include <cstdio>
+#include <cassert>
 #include <random>
 #include <chrono>
 
@@ -252,16 +254,63 @@ struct World
 };
 
 
+float f( const Vector& w )
+{
+    // evalue cos theta
+    Vector n= Vector(0, 0, 1);
+    assert(w.z > 0);
+    return dot(n, w);
+}
+
+// genere une direction sur l'hemisphere, 
+// cf GI compendium, eq 34
+Vector sample34( const float u1, const float u2 )
+{
+    // coordonnees theta, phi
+    float cos_theta= u1;
+    float phi= float(2 * M_PI) * u2;
+    
+    // passage vers x, y, z
+    float sin_theta= std::sqrt(1 - cos_theta*cos_theta);
+    return Vector( std::cos(phi) * sin_theta, std::sin(phi) * sin_theta, cos_theta );
+}
+
+// evalue la densite de proba, la pdf de la direction, cf GI compendium, eq 34
+float pdf34( const Vector& w )
+{
+    if(w.z < 0) return 0;
+    return 1 / float(2 * M_PI);
+}
+
+// genere une direction sur l'hemisphere, 
+// cf GI compendium, eq 35
+Vector sample35( const float u1, const float u2 )
+{
+    // coordonnees theta, phi
+    float cos_theta= std::sqrt(u1);
+    float phi= float(2 * M_PI) * u2;
+    
+    // passage vers x, y, z
+    float sin_theta= std::sqrt(1 - cos_theta*cos_theta);
+    return Vector( std::cos(phi) * sin_theta, std::sin(phi) * sin_theta, cos_theta );
+}
+
+// evalue la densite de proba, la pdf de la direction, cf GI compendium, eq 35
+float pdf35( const Vector& w )
+{
+    if(w.z < 0) return 0;
+    return w.z / float(M_PI);
+}
 
 
 int main( const int argc, const char **argv )
 {
-    //const char *mesh_filename= "data/cornell.obj";
-    const char *mesh_filename= "data/emission.obj";
-    //const char *orbiter_filename= "data/cornell_orbiter.txt";
+    const char *mesh_filename= "data/cornell.obj";
+    //const char *mesh_filename= "data/emission.obj";
+    const char *orbiter_filename= "data/cornell_orbiter.txt";
     //const char *orbiter_filename= "data/emission_orbiter.txt";
     //const char *orbiter_filename= "data/orbiter.txt";
-    const char *orbiter_filename= "orbiter.txt";
+    //const char *orbiter_filename= "orbiter.txt";
     
     if(argc > 1) mesh_filename= argv[1];
     if(argc > 2) orbiter_filename= argv[2];
@@ -331,7 +380,8 @@ int main( const int argc, const char **argv )
             {
                 const TriangleData& triangle= mesh.triangle(hit.triangle_id);           // recuperer le triangle
                 const Material& material= mesh.triangle_material(hit.triangle_id);      // et sa matiere
-                
+
+
                 // position du point d'intersection
                 //Point p= ray.o + hit.t * ray.d;
                 Point p= point(hit, ray);               // point d'intersection
@@ -341,18 +391,72 @@ int main( const int argc, const char **argv )
                     pn= -pn;
 
                 Color emission= material.emission;
+                World world(pn);
 
-
-                int N_point_Source=200;
+                int N_point_Source=64;
                 float P_Si_float = (int) (N_Source)* u01(rng);
                 //int P_Si = (int) P_Si_float;
                 //std::cout<<P_Si_float<<" int "<<P_Si<<std::endl;
 
+
+
+                for (int ni=0; ni<N_point_Source; ni++){
+
+                    float u1= u01(rng);
+                    float u2= u01(rng);
+                    
+                    // generer une direction (dans un repere local, arbitraire)
+                    Vector v= sample35(u1, u2);
+                    float pdf= pdf35(v);
+                    
+                    // changement de repere vers la scene
+                    Vector d= world(v);
+                    
+                    // evaluer la visibilite
+                    const float scale= 10;  
+                    // le vecteur d est de longueur 1, utiliser un vecteur plus grand, en fonction du rayon de la sphere englobante de la scene
+                    // rappel : on veut savoir si le point p voit le ciel... qui est a l'exterieur de la scene.
+                    
+                    Ray ray2(p +0.001f*pn, d * scale);
+                    //ray2.tmax = 1 - .0001f ;
+                    Hit hit2= bvh.intersect(ray2);
+                    if(hit2 == true)
+                    {
+                        // pas de geometrie dans la direction d, p est donc eclaire par le ciel
+                        
+                        // evaluer les termes de la fonction a integrer
+                        // V(p, d) == 1, puisqu'on a pas trouve d'intersection
+                        float cos_theta= std::max(float(0), dot(pn, d));
+
+                        //
+                        // occultation ambiante 
+                        //
+                        color= color + 1 / float(M_PI) * material.diffuse * cos_theta / (pdf*N_point_Source);
+
+                        // const Material& material2= mesh.triangle_material(hit2.triangle_id);
+                        // Color emission_si = material2.emission;
+
+                        
+                        // const TriangleData& triangle2= mesh.triangle(hit2.triangle_id);
+                        // Vector sn= normal(hit2, triangle2);
+                        // Point p_sn= point(hit2, ray2);
+
+                        // float cos_theta_s = std::max(0.f, dot(sn, normalize(-d)));
+                        // //
+                        // // full calcul
+                        // //
+                        // color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * 1.f / (length2(p_sn-p)*N_point_Source*pdf );
+                        
+                    }
+                }
+
+
+
+/*
                 for (int ni=0; ni<N_point_Source; ni++){
                     //
                     // random source
                     //
-
                     //int si = (int) N_Source* u01(rng);
 
                     //
@@ -415,25 +519,31 @@ int main( const int argc, const char **argv )
                     // accumuler la couleur de l'echantillon
                     float cos_theta= std::max(0.f, dot(pn, normalize(l)));
                     float cos_theta_s= std::max(0.f, dot(sn, normalize(-l)));
+                    //
+                    // random source
+                    //
                     //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * 1.f / (length2(l)*N_Source*N_point_Source*sources(si).pdf(s) );
 
                     //
                     // random source according area
                     //
-                    color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * 1.f / (length2(l)*N_point_Source );*
+                    //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * 1.f / (length2(l)*N_point_Source );
 
-                    //
-                    // occultation ambiante 
-                    //
 
+                    color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta *  v * 1.f / (length2(l)*N_point_Source*sources.area );*
                     
 
                 }
+
+*/
+                
+
+
                 float gamma = 2.2;
                 color.r=pow(color.r,1.0/gamma);
                 color.g=pow(color.g,1.0/gamma);
                 color.b=pow(color.b,1.0/gamma);
-                color =  emission + color*50;
+                color =  emission + color;
 
             }
 

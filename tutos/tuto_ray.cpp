@@ -431,21 +431,21 @@ int main( const int argc, const char **argv )
                         //
                         // occultation ambiante 
                         //
-                        color= color + 1 / float(M_PI) * material.diffuse * cos_theta / (pdf*N_point_Source);
+                        //color= color + 1 / float(M_PI) * material.diffuse * cos_theta / (pdf*N_point_Source);
 
-                        // const Material& material2= mesh.triangle_material(hit2.triangle_id);
-                        // Color emission_si = material2.emission;
+                        const Material& material2= mesh.triangle_material(hit2.triangle_id);
+                        Color emission_si = material2.emission;
 
                         
-                        // const TriangleData& triangle2= mesh.triangle(hit2.triangle_id);
-                        // Vector sn= normal(hit2, triangle2);
-                        // Point p_sn= point(hit2, ray2);
+                        const TriangleData& triangle2= mesh.triangle(hit2.triangle_id);
+                        Vector sn= normal(hit2, triangle2);
+                        Point p_sn= point(hit2, ray2);
 
-                        // float cos_theta_s = std::max(0.f, dot(sn, normalize(-d)));
-                        // //
-                        // // full calcul
-                        // //
-                        // color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * 1.f / (length2(p_sn-p)*N_point_Source*pdf );
+                        float cos_theta_s = std::max(0.f, dot(sn, normalize(-d)));
+                        //
+                        // full calcul
+                        //
+                        color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * 1.f / (length2(p_sn-p)*N_point_Source*pdf );
                         
                     }
                 }

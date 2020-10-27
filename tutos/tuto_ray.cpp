@@ -890,10 +890,10 @@ int main( const int argc, const char **argv )
 
                 //color = color_direct_direction( rng, u01, material, mesh, bvh, N_point_Source,pn, p);
                 //color = color_direct_sources_Area_emission( rng, u01, material, sources, bvh, N_Source, N_point_Source,pn, p); //OK
-                //color_indirect = color_ambiant_direction( rng, u01, material, mesh, bvh, N_point_Source,pn, p);
+                color_indirect = color_ambiant_direction( rng, u01, material, mesh, bvh, N_point_Source,pn, p);
 
                 color_direct = color_direct_sources_cornell( rng, u01, material, sources, bvh, N_Source, N_point_Source_direct,pn, p);
-                color_indirect = color_indirect_direction(rng, u01, material, mesh,sources, bvh, N_point_Source, N_Source, pn, p);
+                //color_indirect = color_indirect_direction(rng, u01, material, mesh,sources, bvh, N_point_Source, N_Source, pn, p);
                 //color = color_Ultime(rng, u01, material, mesh, sources, bvh, N_Source, N_point_Source, pn, p);
                 
                 color = color_indirect/2 + color_direct/2;

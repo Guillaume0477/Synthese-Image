@@ -353,11 +353,436 @@ Color color_direct_direction(std::default_random_engine &rng, std::uniform_real_
             // full calcul
             //
             color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * 1.f / (length2(p_sn-p)*N_point_Source*pdf );
+            //color= color +  emission_si*material.diffuse* cos_theta * 1.f / (N_point_Source*pdf );
+            //color= color +  emission_si*material.diffuse* float(M_PI)* 1.f / (N_point_Source);
             
         }
     }
     return color;
 }
+
+Color color_ambiant_direction(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Mesh mesh, BVH bvh, int N_point_Source, Vector pn, Point p){
+
+    Color color= Black();
+
+    for (int ni=0; ni<N_point_Source; ni++){
+
+        float u1= u01(rng);
+        float u2= u01(rng);
+        
+        // generer une direction (dans un repere local, arbitraire)
+        Vector v= sample34(u1, u2);
+        float pdf= pdf34(v);
+        
+        // changement de repere vers la scene
+        World world(pn);
+        Vector d= world(v);
+        
+        // evaluer la visibilite
+        const float scale= 10;  
+        // le vecteur d est de longueur 1, utiliser un vecteur plus grand, en fonction du rayon de la sphere englobante de la scene
+        // rappel : on veut savoir si le point p voit le ciel... qui est a l'exterieur de la scene.
+        
+        Ray ray2(p +0.001f*pn, d * scale);
+        //ray2.tmax = 1 - .0001f ;
+        Hit hit2= bvh.intersect(ray2);
+        if(hit2 == false)
+        {
+            // pas de geometrie dans la direction d, p est donc eclaire par le ciel
+            
+            // evaluer les termes de la fonction a integrer
+            // V(p, d) == 1, puisqu'on a pas trouve d'intersection
+            float cos_theta= std::max(float(0), dot(pn, d));
+
+            //
+            // occultation ambiante 
+            //
+            color= color + 1 * material.diffuse * cos_theta / (float(M_PI)*pdf*N_point_Source);
+
+            // const Material& material2= mesh.triangle_material(hit2.triangle_id);
+            // Color emission_si = material2.emission;
+
+            
+            // const TriangleData& triangle2= mesh.triangle(hit2.triangle_id);
+            // Vector sn= normal(hit2, triangle2);
+            // Point p_sn= point(hit2, ray2);
+
+            // float cos_theta_s = std::max(0.f, dot(sn, normalize(-d)));
+            // //
+            // // full calcul
+            // //
+            // color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * 1.f / (length2(p_sn-p)*N_point_Source*pdf );
+            //color= color +  emission_si*material.diffuse* cos_theta * 1.f / (N_point_Source*pdf );
+            //color= color +  emission_si*material.diffuse* float(M_PI)* 1.f / (N_point_Source);
+            
+        }
+    }
+    return color;
+}
+
+
+
+Color color_direct_sources_cornell(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Sources sources, BVH bvh, int N_Source, int N_point_Source, Vector pn, Point p){
+
+    Color color= Black();
+
+    for (int ni=0; ni<N_point_Source; ni++){
+        //
+        // random source
+        //
+        int si = (int) N_Source* u01(rng);
+
+        //
+        // random source according area
+        //
+        // int si;
+        // int P_si = (int) sources.area*u01(rng); //entre 0 et 20000
+        // if (P_si <= 5000){ 
+        //     si=N_Source-1;
+        // }
+        // else if (P_si <= 10000){
+        //     si=N_Source-2;
+        // }
+        // else {
+        //     si = (int) (N_Source-2)* u01(rng);
+        // }
+
+        // position et emission de la source de lumiere si
+        float u1=u01(rng);
+        float u2=u01(rng);
+
+        //Point s= (Point(sources(si).a) + Point(sources(si).b) + Point(sources(si).c))/3.0;
+        Point s= sources(si).sample(u1,u2);
+        Color emission_si= sources(si).emission;
+
+        // direction de p vers la source s
+        Vector p_to_s= Vector(p, s);
+
+        // visibilite entre p et s
+        float v= 1;
+
+        //rayon de p vers s
+        Ray shadow_ray(p + 0.0001f * pn, p_to_s);//+ 0.001f * pn
+        shadow_ray.tmax = 1 - .0001f ;//
+
+        //if(bvh.visible(shadow_ray) != 1)
+        if(Hit hit2= bvh.intersect(shadow_ray))
+        {
+            // on vient de trouver un triangle entre p et s. p est donc a l'ombre
+            v= 0;
+        }
+
+        Vector sn= sources(si).n;// normale du triangle au point de la source  interpolee ?
+
+
+        // accumuler la couleur de l'echantillon
+        float cos_theta= std::max(0.f, dot(pn, normalize(p_to_s)));
+        float cos_theta_s= std::max(0.f, dot(sn, normalize(-p_to_s)));
+        //
+        // random source
+        //
+        color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * 1.f / (length2(p_to_s)*N_point_Source*N_Source*sources(si).pdf(s) );
+
+        //
+        // random source according area
+        //
+        //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * sources.area * 1.f / (length2(p_to_s)*N_point_Source );
+
+    }
+    return color;
+}
+
+
+Color color_indirect_direction(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Mesh mesh,Sources sources, BVH bvh, int N_point_Source,int N_Source, Vector pn, Point p){
+
+    Color color= Black();
+
+    for (int ni=0; ni<N_point_Source; ni++){
+
+        float u1= u01(rng);
+        float u2= u01(rng);
+        
+        // generer une direction (dans un repere local, arbitraire)
+        Vector v= sample35(u1, u2);
+        float pdf= pdf35(v);
+        
+        // changement de repere vers la scene
+        World world(pn);
+        Vector d= world(v);
+        
+        // evaluer la visibilite
+        const float scale= 10;  
+        // le vecteur d est de longueur 1, utiliser un vecteur plus grand, en fonction du rayon de la sphere englobante de la scene
+        // rappel : on veut savoir si le point p voit le ciel... qui est a l'exterieur de la scene.
+        
+        Ray ray2(p +0.001f*pn, d * scale);
+        //ray2.tmax = 1 - .0001f ;
+        Hit hit2= bvh.intersect(ray2);
+        if(hit2 == true)
+        {
+            // pas de geometrie dans la direction d, p est donc eclaire par le ciel
+            
+            // evaluer les termes de la fonction a integrer
+            // V(p, d) == 1, puisqu'on a pas trouve d'intersection
+            float cos_theta= std::max(float(0), dot(pn, d));
+
+
+
+            const Material& material2= mesh.triangle_material(hit2.triangle_id);
+            //Color emission_q = material2.emission;
+
+            
+            const TriangleData& triangle2= mesh.triangle(hit2.triangle_id);
+            Vector qn= normal(hit2, triangle2);
+            Point p_qn= point(hit2, ray2);
+
+            float cos_theta_s = std::max(0.f, dot(qn, normalize(-d)));
+            int N_point_Source_direct = 4;
+
+            Color emission_q = color_direct_sources_cornell( rng, u01, material2, sources, bvh, N_Source, N_point_Source_direct, qn, p_qn);
+            //color= color +  emission_q*material.diffuse* cos_theta_s* cos_theta * 1.f / (length2(p_qn-p)*N_point_Source*pdf );
+            //
+            // occultation ambiante 
+            //
+            color= color + emission_q * material.diffuse * cos_theta / (pdf*N_point_Source);
+
+
+            // //
+            // // full calcul
+            // //
+            //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * 1.f / (length2(p_sn-p)*N_point_Source*pdf );
+            //color= color +  emission_si*material.diffuse* cos_theta * 1.f / (N_point_Source*pdf );
+            //color= color +  emission_si*material.diffuse* float(M_PI)* 1.f / (N_point_Source);
+            
+        }
+    }
+    return color;
+}
+
+
+
+ 
+Color color_direct_sources_Area_emission(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Sources sources, BVH bvh, int N_Source, int N_point_Source, Vector pn, Point p){
+
+    Color color= Black();
+
+    for (int ni=0; ni<N_point_Source; ni++){
+        //
+        // random source
+        //
+        int si = (int) N_Source* u01(rng);
+
+        //
+        // random source according area
+        //
+        // int si;
+        // int P_si = (int) sources.area*u01(rng); //entre 0 et 20000
+        // if (P_si <= 5000){ 
+        //     si=N_Source-1;
+        // }
+        // else if (P_si <= 10000){
+        //     si=N_Source-2;
+        // }
+        // else {
+        //     si = (int) (N_Source-2)* u01(rng);
+        // }
+
+        // position et emission de la source de lumiere si
+        float u1=u01(rng);
+        float u2=u01(rng);
+
+        //Point s= (Point(sources(si).a) + Point(sources(si).b) + Point(sources(si).c))/3.0;
+        Point s= sources(si).sample(u1,u2);
+        Color emission_si= sources(si).emission;
+
+        // direction de p vers la source s
+        Vector p_to_s= Vector(p, s);
+
+        // visibilite entre p et s
+        float v= 1;
+
+        //rayon de p vers s
+        Ray shadow_ray(p + 0.0001f * pn, p_to_s);//+ 0.001f * pn
+        shadow_ray.tmax = 1 - .0001f ;//
+
+        //if(bvh.visible(shadow_ray) != 1)
+        if(Hit hit2= bvh.intersect(shadow_ray))
+        {
+            // on vient de trouver un triangle entre p et s. p est donc a l'ombre
+            v= 0;
+        }
+
+        Vector sn= sources(si).n;// normale du triangle au point de la source  interpolee ?
+
+
+        // accumuler la couleur de l'echantillon
+        float cos_theta= std::max(0.f, dot(pn, normalize(p_to_s)));
+        float cos_theta_s= std::max(0.f, dot(sn, normalize(-p_to_s)));
+        //
+        // random source
+        //
+        color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta* sources.area * v * 1.f / (length2(p_to_s)*N_point_Source*N_Source*sources(si).pdf(s) );
+
+        //
+        // random source according area
+        //
+        //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * sources.area * 1.f / (length2(p_to_s)*N_point_Source );
+
+    }
+    return color;
+}
+
+
+
+
+Color color_Ultime(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material,Mesh mesh, Sources sources, BVH bvh, int N_Source, int N_point_Source, Vector pn, Point p){
+
+
+    Color color= Black();
+    Color I1= Black();
+    Color I2= Black();
+
+    for (int ni=0; ni<N_point_Source; ni++){
+        //
+        // random source
+        //
+        //int si = (int) N_Source* u01(rng);
+
+        //
+        // random source according area
+        //
+        int si;
+        int P_si = (int) sources.area*u01(rng); //entre 0 et 20000
+        if (P_si <= 5000){ 
+            si=N_Source-1; 
+        }
+        else if (P_si <= 10000){
+            si=N_Source-2;
+        }
+        else {
+            si = (int) (N_Source-2)* u01(rng);
+        }
+        float P1y1=1/sources.area;
+        float P1y2=1/sources.area;
+
+
+        //std::cout<<"area"<<sources(si).area<<std::endl;
+        // position et emission de la source de lumiere si
+        float u1=u01(rng);
+        float u2=u01(rng);
+
+        //Point s= (Point(sources(si).a) + Point(sources(si).b) + Point(sources(si).c))/3.0;
+        Point s= sources(si).sample(u1,u2);   ///s = Y1i 
+        Color emission_si= sources(si).emission;
+        
+        
+        //Point p= (Point(data.a) + Point(data.b) + Point(data.c)) / 3;
+        // interpoler la normale au point d'intersection
+        //Vector pn= normal(mesh, hit);
+        // direction de p vers la source s
+        Vector l= Vector(p, s);
+
+        // visibilite entre p et s
+        float vu= 1;
+
+        Ray shadow_ray(p + 0.0001f * pn, l);//+ 0.001f * pn
+        shadow_ray.tmax = 1 - .0001f ;//
+
+        //if(bvh.visible(shadow_ray) != 1)
+        if(Hit hit2= bvh.intersect(shadow_ray))
+        {
+            // on vient de trouver un triangle entre p et s. p est donc a l'ombre
+            vu= 0;
+        }
+
+        Vector sn= sources(si).n;// normale du triangle au point de la source  interpolee ?
+
+
+        // accumuler la couleur de l'echantillon
+        float cos_theta1= std::max(0.f, dot(pn, normalize(l)));
+        float cos_theta_s1= std::max(0.f, dot(sn, normalize(-l)));
+        //
+        // random source
+        //
+        //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * 1.f / (length2(l)*N_point_Source*N_Source*sources(si).pdf(s) );
+
+        //
+        // random source according area
+        //
+        //I1= emission_si*material.diffuse* cos_theta_s1* cos_theta1 * vu * 1.f / (length2(l)*N_point_Source );
+        I1= emission_si*material.diffuse* cos_theta_s1* cos_theta1 * vu * sources.area * 1.f / (length2(l)*N_point_Source );
+
+
+
+
+        float u12= u01(rng);
+        float u22= u01(rng);
+        
+        // generer une direction (dans un repere local, arbitraire)
+        Vector v= sample35(u12, u22);
+        float pdf= pdf35(v);
+        
+        // changement de repere vers la scene
+        World world(pn);
+        Vector d= world(v);
+        
+        // evaluer la visibilite
+        const float scale= 10;  
+        // le vecteur d est de longueur 1, utiliser un vecteur plus grand, en fonction du rayon de la sphere englobante de la scene
+        // rappel : on veut savoir si le point p voit le ciel... qui est a l'exterieur de la scene.
+        
+        Ray ray2(p +0.001f*pn, d * scale);
+        //ray2.tmax = 1 - .0001f ;
+        Hit hit2= bvh.intersect(ray2);
+
+        float P2y1;
+        float P2y2;
+
+        if(hit2 == true)
+        {
+            // pas de geometrie dans la direction d, p est donc eclaire par le ciel
+            
+            // evaluer les termes de la fonction a integrer
+            // V(p, d) == 1, puisqu'on a pas trouve d'intersection
+            float cos_theta2= std::max(float(0), dot(pn, d));
+
+            //
+            // occultation ambiante 
+            //
+            //color= color + 1 / float(M_PI) * material.diffuse * cos_theta / (pdf*N_point_Source);
+
+            const Material& material2= mesh.triangle_material(hit2.triangle_id);
+            Color emission_si = material2.emission;
+
+            
+            const TriangleData& triangle2= mesh.triangle(hit2.triangle_id);
+            Vector sn= normal(hit2, triangle2);
+            Point p_sn= point(hit2, ray2); ///p_sn = Y2i 
+
+            float cos_theta_s2 = std::max(0.f, dot(sn, normalize(-d)));
+            //std::cout<<cos_theta2/float(M_PI)<<"  "<<pdf<<std::endl;
+
+            P2y2=pdf*cos_theta_s2/(length2(p_sn-p));
+            P2y1=cos_theta1*cos_theta_s1/(float(M_PI)*length2(l));
+            //
+            // full calcul
+            //
+            //I2= emission_si*material.diffuse* cos_theta_s2* cos_theta2 * 1.f / (length2(p_sn-p)*N_point_Source*pdf );
+            //I2 = emission_si*material.diffuse* cos_theta2 * 1.f / (N_point_Source*pdf );
+            I2 = (emission_si*material.diffuse* 1.f / (N_point_Source));
+
+        }
+
+        color = color + (P1y1/(P1y1+P2y1))*I1 + (P2y2/(P1y2+P2y2))*I2;
+
+    }
+
+
+    return color;
+}
+
+
+
 
 
 int main( const int argc, const char **argv )
@@ -420,6 +845,8 @@ int main( const int argc, const char **argv )
         
         for(int px= 0; px < image.width(); px++)
         {
+            Color color_direct= Black();
+            Color color_indirect= Black();
             Color color= Black();
             
             // generer le rayon pour le pixel (x, y)
@@ -450,152 +877,26 @@ int main( const int argc, const char **argv )
                 Color emission= material.emission;
                 World world(pn);
 
-                int N_point_Source=64;
+
+
+                int N_point_Source=32;
+                int N_point_Source_direct=16;
+
+
+
                 float P_Si_float = (int) (N_Source)* u01(rng);
                 //int P_Si = (int) P_Si_float;
                 //std::cout<<P_Si_float<<" int "<<P_Si<<std::endl;
 
-                color = color_direct_direction( rng, u01, material, mesh, bvh, N_point_Source,pn, p);
-/*
-                for (int ni=0; ni<N_point_Source; ni++){
+                //color = color_direct_direction( rng, u01, material, mesh, bvh, N_point_Source,pn, p);
+                //color = color_direct_sources_Area_emission( rng, u01, material, sources, bvh, N_Source, N_point_Source,pn, p); //OK
+                //color_indirect = color_ambiant_direction( rng, u01, material, mesh, bvh, N_point_Source,pn, p);
 
-                    float u1= u01(rng);
-                    float u2= u01(rng);
-                    
-                    // generer une direction (dans un repere local, arbitraire)
-                    Vector v= sample35(u1, u2);
-                    float pdf= pdf35(v);
-                    
-                    // changement de repere vers la scene
-                    Vector d= world(v);
-                    
-                    // evaluer la visibilite
-                    const float scale= 10;  
-                    // le vecteur d est de longueur 1, utiliser un vecteur plus grand, en fonction du rayon de la sphere englobante de la scene
-                    // rappel : on veut savoir si le point p voit le ciel... qui est a l'exterieur de la scene.
-                    
-                    Ray ray2(p +0.001f*pn, d * scale);
-                    //ray2.tmax = 1 - .0001f ;
-                    Hit hit2= bvh.intersect(ray2);
-                    if(hit2 == true)
-                    {
-                        // pas de geometrie dans la direction d, p est donc eclaire par le ciel
-                        
-                        // evaluer les termes de la fonction a integrer
-                        // V(p, d) == 1, puisqu'on a pas trouve d'intersection
-                        float cos_theta= std::max(float(0), dot(pn, d));
-
-                        //
-                        // occultation ambiante 
-                        //
-                        //color= color + 1 / float(M_PI) * material.diffuse * cos_theta / (pdf*N_point_Source);
-
-                        const Material& material2= mesh.triangle_material(hit2.triangle_id);
-                        Color emission_si = material2.emission;
-
-                        
-                        const TriangleData& triangle2= mesh.triangle(hit2.triangle_id);
-                        Vector sn= normal(hit2, triangle2);
-                        Point p_sn= point(hit2, ray2);
-
-                        float cos_theta_s = std::max(0.f, dot(sn, normalize(-d)));
-                        //
-                        // full calcul
-                        //
-                        color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * 1.f / (length2(p_sn-p)*N_point_Source*pdf );
-                        
-                    }
-                }
-*/
-
-
-/*
-                for (int ni=0; ni<N_point_Source; ni++){
-                    //
-                    // random source
-                    //
-                    //int si = (int) N_Source* u01(rng);
-
-                    //
-                    // random source according area
-                    //
-
-                    int si;
-                    int P_si = (int) sources.area*u01(rng); //entre 0 et 20000
-                    if (P_si <= 5000){ 
-                        si=N_Source-1;
-                    }
-                    else if (P_si <= 10000){
-                        si=N_Source-2;
-                    }
-                    else {
-                        si = (int) (N_Source-2)* u01(rng);
-                    }
-                    //si = (int) (N_Source-2)* u01(rng);
-                    //std::cout<<si<<std::endl;
-
-                    // if (si==0) {
-                    //     printf("zeros\n\n");
-                    // }
-                    // if (si==N_Source-1) {
-                    //     printf("N_source\n\n");
-                    // }
-
-                    //std::cout<<"area"<<sources(si).area<<std::endl;
-                    // position et emission de la source de lumiere si
-                    float u1=u01(rng);
-                    float u2=u01(rng);
-
-                    //Point s= (Point(sources(si).a) + Point(sources(si).b) + Point(sources(si).c))/3.0;
-                    Point s= sources(si).sample(u1,u2);
-                    Color emission_si= sources(si).emission;
-                    
-                    
-                    //Point p= (Point(data.a) + Point(data.b) + Point(data.c)) / 3;
-                    // interpoler la normale au point d'intersection
-                    //Vector pn= normal(mesh, hit);
-                    // direction de p vers la source s
-                    Vector l= Vector(p, s);
-
-                    // visibilite entre p et s
-                    float v= 1;
-
-                    Ray shadow_ray(p + 0.0001f * pn, l);//+ 0.001f * pn
-                    shadow_ray.tmax = 1 - .0001f ;//
-
-                    //if(bvh.visible(shadow_ray) != 1)
-                    if(Hit hit2= bvh.intersect(shadow_ray))
-                    {
-                        // on vient de trouver un triangle entre p et s. p est donc a l'ombre
-                        v= 0;
-                    }
-
-                    Vector sn= sources(si).n;// normale du triangle au point de la source  interpolee ?
-
-
-                    // accumuler la couleur de l'echantillon
-                    float cos_theta= std::max(0.f, dot(pn, normalize(l)));
-                    float cos_theta_s= std::max(0.f, dot(sn, normalize(-l)));
-                    //
-                    // random source
-                    //
-                    //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * 1.f / (length2(l)*N_Source*N_point_Source*sources(si).pdf(s) );
-
-                    //
-                    // random source according area
-                    //
-                    //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * 1.f / (length2(l)*N_point_Source );
-
-
-                    color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta *  v * 1.f / (length2(l)*N_point_Source*sources.area );*
-                    
-
-                }
-
-*/
+                color_direct = color_direct_sources_cornell( rng, u01, material, sources, bvh, N_Source, N_point_Source_direct,pn, p);
+                color_indirect = color_indirect_direction(rng, u01, material, mesh,sources, bvh, N_point_Source, N_Source, pn, p);
+                //color = color_Ultime(rng, u01, material, mesh, sources, bvh, N_Source, N_point_Source, pn, p);
                 
-
-
+                color = color_indirect/2 + color_direct/2;
                 float gamma = 2.2;
                 color.r=pow(color.r,1.0/gamma);
                 color.g=pow(color.g,1.0/gamma);
@@ -605,31 +906,6 @@ int main( const int argc, const char **argv )
             }
 
 
-            // if(hit)
-            // {
-
-                
-            //     // visibilite entre p et s
-            //     float v= 1;
-            // #if 1
-            //     Ray shadow_ray(p + 0.001f * pn, s);
-            //     for(int i= 0; i < int(triangles.size()); i++)
-            //     {
-            //         if(triangles[i].intersect(shadow_ray, 1 - .001f))
-            //         {
-            //             // on vient de trouver un triangle entre p et s. p est donc a l'ombre
-            //             v= 0;
-            //             break;  // pas la peine de continuer
-            //         }
-            //     }
-            // #endif
-                
-            //     // calculer la lumiere reflechie vers la camera / l'origine du rayon
-            //     //float cos_theta= std::abs(dot(pn, normalize(l)));
-            //     //Color fr= diffuse_color(mesh, hit) / M_PI;
-                
-            //     //Color color= v * emission * fr * cos_theta / length2(l);
-            //     Color color = v * color;
         image(px, py)= Color(color, 1);
         }
     }

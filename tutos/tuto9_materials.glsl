@@ -68,7 +68,7 @@ uniform sampler2D color_texture;
 
 void main( )
 {
-    vec3 l= normalize(-vertex_position);        // la camera est la source de lumiere.
+    vec3 l= normalize(0-vertex_position);        // la camera est la source de lumiere.
     vec3 n= normalize(vertex_normal);
     float cos_theta= max(0, dot(n, l));
     

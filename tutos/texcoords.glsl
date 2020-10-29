@@ -27,13 +27,16 @@ void main( )
 #endif
 
 #ifdef FRAGMENT_SHADER
+uniform sampler2D profondeur_texture;
 uniform sampler2D color_texture;
+
+
 
 in vec3 vertex_position;
 in vec2 vertex_texcoord;
 in vec3 vertex_normal;
 
-out vec4 fragment_color;
+layout(location= 0) out vec4 fragment_color;
 
 void main( )
 {
@@ -41,6 +44,8 @@ void main( )
     float cos_theta= dot( normalize(vertex_normal), normalize(-vertex_position));
     //~ vec4 color= textureLod(color_texture, vertex_texcoord, 0);
     vec4 color= texture(color_texture, vertex_texcoord);
-    fragment_color= cos_theta * color;
+    float z = texelFetch(profondeur_texture, ivec2(vertex_texcoord), 0).x;
+
+    fragment_color= color;//vec4(color.x,color.x,color.x,0.6f);
 }
 #endif

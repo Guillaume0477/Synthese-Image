@@ -150,8 +150,6 @@ public:
 
         //CHANGE
 
-        GLuint vao;
-        GLuint vertex_buffer;
 
         Point pmin_frame, pmax_frame;
         Point pmin, pmax;
@@ -276,9 +274,12 @@ public:
                     }
                 }
                 
-                m_objet_2[i][k].create(mesh, mesh2);
+                m_objet_2_cube[i][k].create(mesh, mesh2);
             }
         }
+
+
+
             /*glGenBuffers(1, &vertex_buffer);
          glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
          glBufferData(GL_ARRAY_BUFFER, m_objet[i].vertex_buffer_size(), m_objet[i].vertex_buffer(), GL_STATIC_DRAW);
@@ -387,6 +388,58 @@ public:
 
         // glGenerateMipmap(GL_TEXTURE_2D);
 
+        // The fullscreen quad's FBO
+
+        glGenVertexArrays(1, &quad_VertexArrayID);
+        glBindVertexArray(quad_VertexArrayID);
+
+        static const GLfloat g_quad_vertex_buffer_data[] = {
+            -1.0f, -1.0f, 0.0f,
+            1.0f, -1.0f, 0.0f,
+            -1.0f,  1.0f, 0.0f,
+            -1.0f,  1.0f, 0.0f,
+            1.0f, -1.0f, 0.0f,
+            1.0f,  1.0f, 0.0f,
+        };
+
+        GLuint quad_vertexbuffer;
+        glGenBuffers(1, &quad_vertexbuffer);
+        glBindBuffer(GL_ARRAY_BUFFER, quad_vertexbuffer);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(g_quad_vertex_buffer_data), g_quad_vertex_buffer_data, GL_STATIC_DRAW);
+        glVertexAttribPointer(0,3,GL_FLOAT, GL_FALSE, 0, 0);
+        glEnableVertexAttribArray(0);
+
+        // // Créer un tableau de float contenant les sommets à afficher
+        // float sommet_objet[] = {-1.0,-1.0,0.0, 1.0,-1.0,0.0 ,-1.0,1.0,0.0, 1.0,1.0,0.0};
+        
+        // float colors[] = {1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0};
+
+        // // Créer un ficher d'entier non signé contenant les indices de sommets
+        
+        // uint indice_objet[] = {0,2,1,2,3,1};
+
+        // // Créer un VAO -> glGenVertexArrays(GLsizei, GLuint *)
+        // glGenVertexArrays(1, &VAO);
+        // // Créer un VBO puis un EBO -> glGenBuffers(GLsizei, GLuint *)
+        // glGenBuffers(1, &VBO);
+        // glGenBuffers(1, &EBO);
+
+
+        // // Mettre le VAO en actif dans la machine d'état -> glBindVertexArray(GLuint)
+        // glBindVertexArray(VAO);
+
+        // glBindBuffer(GL_ARRAY_BUFFER,VBO);
+        // glBufferData(GL_ARRAY_BUFFER, 12*sizeof(float), &sommet_objet[0], GL_STATIC_DRAW);
+        // glVertexAttribPointer(0,3,GL_FLOAT, GL_FALSE, 0, 0);
+        // glEnableVertexAttribArray(0);
+
+
+        // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,EBO);
+        // glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6*sizeof(uint), &indice_objet[0], GL_STATIC_DRAW);
+
+
+        
+
         m_framebuffer_width = 1024;
         m_framebuffer_height = 640;
 
@@ -404,10 +457,11 @@ public:
         // etape 3 : sampler, parametres de filtrage des textures
         glGenSamplers(1, &sampler);
 
-        glSamplerParameteri(sampler, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glSamplerParameteri(sampler, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glSamplerParameteri(sampler, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-        glSamplerParameteri(sampler, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        glSamplerParameteri(sampler, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glSamplerParameteri(sampler, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glSamplerParameteri(sampler, GL_TEXTURE_MAX_LEVEL, 0);
+        //glSamplerParameteri(sampler, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        //glSamplerParameteri(sampler, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 
         // etape 1 : creer aussi une texture depth, sinon pas de zbuffer...
         glGenTextures(1, &m_depth_buffer);
@@ -459,6 +513,8 @@ public:
         program_print_errors(m_program);
         m_program2 = read_program("tutos/tuto9_materials.glsl");
         program_print_errors(m_program2);
+        m_program_quad = read_program("tutos/quad.glsl");
+        program_print_errors(m_program_quad);
 
         // mesure du temps gpu de glDraw
         glGenQueries(1, &m_time_query);
@@ -534,6 +590,8 @@ public:
         // utilise std::chrono pour mesurer le temps cpu
         std::chrono::high_resolution_clock::time_point cpu_start = std::chrono::high_resolution_clock::now();
 
+
+
         float time = global_time(); //same time for all robots
 
         //glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
@@ -605,7 +663,7 @@ public:
                 // location= glGetUniformLocation(m_program, "texture1");
                 // glUniform1i(location, 1);
 
-                program_use_texture(m_program2, "color_texture", 0, m_texture0, 0);
+                //program_use_texture(m_program2, "color_texture", 0, m_texture0, 0);
 
                 //program_use_texture(m_program, "texture0", m_texture0, sampler);
                 //program_use_texture(m_program, "texture1", m_texture1, sampler);
@@ -638,6 +696,93 @@ public:
                 0, 0, m_framebuffer_width, m_framebuffer_height, // rectangle origine dans READ_FRAMEBUFFER
                 0, 0, m_framebuffer_width, m_framebuffer_height, // rectangle destination dans DRAW_FRAMEBUFFER
                 GL_COLOR_BUFFER_BIT, GL_LINEAR);                 // ne copier que la couleur (+ interpoler)
+        } 
+        else if (key_state('r'))
+        {
+
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+            glViewport(0, 0, window_width(), window_height());
+
+            // glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_framebuffer);
+            // glViewport(0, 0, m_framebuffer_width, m_framebuffer_height);
+            //glClearColor(0.2f, 0.2f, 0.2f, 1.f); // couleur par defaut de la fenetre
+            glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+            // on commence par effacer la fenetre avant de dessiner quelquechose
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            // on efface aussi le zbuffer
+
+            int location;
+            glUseProgram(m_program_quad);
+            glBindVertexArray(quad_VertexArrayID);
+
+
+            for (int i = 0; i < 1; i++)
+            {
+                for (int j = 0; j < 1; j++)
+                {
+
+
+
+                    //color
+                    //program_uniform(m_program, "color", vec4(0, 1, 0, 1));
+
+                    //textures
+                    // texture et parametres de filtrage de la texture
+                    // glActiveTexture(GL_TEXTURE0);
+                    // glBindTexture(GL_TEXTURE_2D, m_texture0);
+                    // glBindSampler(0, sampler);
+
+                    // glActiveTexture(GL_TEXTURE0+1);
+                    // glBindTexture(GL_TEXTURE_2D, m_texture1);
+                    // glBindSampler(1, sampler);
+
+                    // // uniform sampler2D declares par le fragment shader
+                    // location= glGetUniformLocation(m_program, "texture0");
+                    // glUniform1i(location, 0);
+
+                    // location= glGetUniformLocation(m_program, "texture1");
+                    // glUniform1i(location, 1);
+                    //program_use_texture(m_program, "color_texture", 0, m_texture0, sampler);
+
+                    //program_use_texture(m_program, "texture0", m_texture0, sampler);
+                    //program_use_texture(m_program, "texture1", m_texture1, sampler);
+
+
+                    //k_frame = 3;(i * j + j)
+
+                    // utilise la texture attachee au framebuffer
+                    //program_uniform(m_program, "color_texture", 1); // utilise la texture configuree sur l'unite 0
+                    program_use_texture(m_program_quad, "color_texture", 0, m_color_buffer, sampler);
+
+                    // // configure l'unite 0
+                    // glActiveTexture(GL_TEXTURE0);
+                    // glBindTexture(GL_TEXTURE_2D, m_color_buffer);
+                    // glBindSampler(0, sampler);
+
+                    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, miplevels(m_framebuffer_width, m_framebuffer_height));
+                    //glGenerateMipmap(GL_TEXTURE_2D);
+
+                    //program_uniform(m_program, "profondeur_texture", 0); // utilise la texture configuree sur l'unite 0
+                    //program_use_texture(m_program_quad, "profondeur_texture", 1, m_depth_buffer, sampler);
+
+                    // // configure l'unite 0
+                    // glActiveTexture(GL_TEXTURE0);
+                    // glBindTexture(GL_TEXTURE_2D, m_depth_buffer);
+                    // glBindSampler(0, sampler);
+
+                    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, miplevels(m_framebuffer_width, m_framebuffer_height));
+                    //glGenerateMipmap(GL_TEXTURE_2D);
+
+                      // Demander affichage -> glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+                    //glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+                    // END TODO Done
+                    //glBindVertexArray(0);
+
+
+                    glBindVertexArray(quad_vertexbuffer);
+                    glDrawArrays(GL_TRIANGLES, 0, 2*3);
+                }
+            }
         }
         else
         {
@@ -660,12 +805,12 @@ public:
                 for (int j = 0; j < w_2; j++)
                 {
 
-                    m_model_2[i * j + j] = Translation(8 * i, 0, 8 * j);
+                    m_model_2_cube[i * j + j] = Translation(8 * i, 0, 8 * j);
                     //draw(m_objet[i*j+j], m_model[i*j+j], m_camera, texture);
                     Transform view = m_camera.view();
                     Transform projection = m_camera.projection(window_width(), window_height(), 45);
-                    Transform mv = view * m_model_2[i * j + j];
-                    Transform mvp = projection * view * m_model_2[i * j + j];
+                    Transform mv = view * m_model_2_cube[i * j + j];
+                    Transform mvp = projection * view * m_model_2_cube[i * j + j];
 
                     //  . transformation : la matrice declaree dans le vertex shader s'appelle mvpMatrix
                     location = glGetUniformLocation(m_program, "mvpMatrix");
@@ -708,7 +853,7 @@ public:
 
                     // location= glGetUniformLocation(m_program, "texture1");
                     // glUniform1i(location, 1);
-                    //program_use_texture(m_program, "color_texture", 0, m_texture0, 0);
+                    //program_use_texture(m_program, "color_texture", 0, m_texture0, sampler);
 
                     //program_use_texture(m_program, "texture0", m_texture0, sampler);
                     //program_use_texture(m_program, "texture1", m_texture1, sampler);
@@ -720,18 +865,30 @@ public:
                     //k_frame = 3;(i * j + j)
 
                     // utilise la texture attachee au framebuffer
-                    program_uniform(m_program, "color_texture", 0); // utilise la texture configuree sur l'unite 0
+                    //program_uniform(m_program, "color_texture", 1); // utilise la texture configuree sur l'unite 0
+                    program_use_texture(m_program, "color_texture", 0, m_color_buffer, sampler);
 
-                    // configure l'unite 0
-                    glActiveTexture(GL_TEXTURE0);
-                    glBindTexture(GL_TEXTURE_2D, m_color_buffer);
-                    glBindSampler(0, sampler);
+                    // // configure l'unite 0
+                    // glActiveTexture(GL_TEXTURE0);
+                    // glBindTexture(GL_TEXTURE_2D, m_color_buffer);
+                    // glBindSampler(0, sampler);
 
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, miplevels(m_framebuffer_width, m_framebuffer_height));
                     glGenerateMipmap(GL_TEXTURE_2D);
 
-                    glBindVertexArray(m_objet_2[i * j + j][(k_frame + (i * j + j)) % 23].vao);
-                    glDrawArrays(GL_TRIANGLES, 0, m_objet_2[i * j + j][(k_frame + (i * j + j)) % 23].vertex_count);
+                    //program_uniform(m_program, "profondeur_texture", 0); // utilise la texture configuree sur l'unite 0
+                    program_use_texture(m_program, "profondeur_texture", 1, m_depth_buffer, sampler);
+
+                    // // configure l'unite 0
+                    // glActiveTexture(GL_TEXTURE0);
+                    // glBindTexture(GL_TEXTURE_2D, m_depth_buffer);
+                    // glBindSampler(0, sampler);
+
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, miplevels(m_framebuffer_width, m_framebuffer_height));
+                    glGenerateMipmap(GL_TEXTURE_2D);
+
+                    glBindVertexArray(m_objet_2_cube[i * j + j][(k_frame + (i * j + j)) % 23].vao);
+                    glDrawArrays(GL_TRIANGLES, 0, m_objet_2_cube[i * j + j][(k_frame + (i * j + j)) % 23].vertex_count);
                 }
             }
         }
@@ -803,8 +960,15 @@ protected:
     //on texture cube
     const static int l_2 = 3;
     const static int w_2 = 3;
-    Transform m_model_2[l_2 * w_2];
-    Buffers m_objet_2[l_2 * w_2][frame_s];
+    Transform m_model_2_cube[l_2 * w_2];
+    Buffers m_objet_2_cube[l_2 * w_2][frame_s];
+
+
+    GLuint VAO;
+    GLuint VBO;
+    GLuint EBO;
+    GLuint quad_VertexArrayID;
+    GLuint quad_vertexbuffer;
 
     Orbiter m_camera;
     Orbiter m_framebuffer_camera;
@@ -823,6 +987,7 @@ protected:
     std::vector<Color> m_colors;
     GLuint m_program;
     GLuint m_program2;
+    GLuint m_program_quad;
 };
 
 int main(int argc, char **argv)

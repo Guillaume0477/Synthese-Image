@@ -52,7 +52,12 @@ void main( )
 
 
 #ifdef FRAGMENT_SHADER
-out vec4 fragment_color;
+
+layout(location= 0) out vec4 buffer_color;
+layout(location= 1) out vec4 buffer_position;
+layout(location= 2) out vec4 buffer_normal;
+layout(location= 3) out vec4 buffer_material;
+
 
 in vec3 vertex_position;
 in vec2 vertex_texcoord;
@@ -68,7 +73,7 @@ uniform sampler2D color_texture;
 
 void main( )
 {
-    vec3 l= normalize(0-vertex_position);        // la camera est la source de lumiere.
+    vec3 l= normalize(-vertex_position);        // la camera est la source de lumiere.
     vec3 n= normalize(vertex_normal);
     float cos_theta= max(0, dot(n, l));
     
@@ -85,7 +90,11 @@ void main( )
     
     //fragment_color= vec4(1, 0.5, 0, 1);
     //fragment_color= color0 * colorm * cos_theta;
-    fragment_color= colorm * cos_theta;//* vec4(0.486, 0.988, 0, 1);
+    buffer_color = colorm * cos_theta;//* vec4(0.486, 0.988, 0, 1);
+    buffer_position = vec4(vertex_position,1);
+    buffer_normal = vec4(vertex_normal,1);
+    buffer_material = colorm;
+
 
     // vec4 color= texture(color_texture, vertex_texcoord);
     // fragment_color= cos_theta * color;

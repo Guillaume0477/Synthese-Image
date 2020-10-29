@@ -451,6 +451,36 @@ public:
                      GL_RGBA, m_framebuffer_width, m_framebuffer_height, 0,
                      GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 
+        // etape 1 : creer une texture couleur...
+        glGenTextures(1, &m_position_buffer);
+        glBindTexture(GL_TEXTURE_2D, m_position_buffer);
+
+        glTexImage2D(GL_TEXTURE_2D, 0,
+                     GL_RGBA, m_framebuffer_width, m_framebuffer_height, 0,
+                     GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+        // ... et tous ses mipmaps
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        // etape 1 : creer une texture couleur...
+        glGenTextures(1, &m_normal_buffer);
+        glBindTexture(GL_TEXTURE_2D, m_normal_buffer);
+
+        glTexImage2D(GL_TEXTURE_2D, 0,
+                     GL_RGBA, m_framebuffer_width, m_framebuffer_height, 0,
+                     GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+        // ... et tous ses mipmaps
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        // etape 1 : creer une texture couleur...
+        glGenTextures(1, &m_material_buffer);
+        glBindTexture(GL_TEXTURE_2D, m_material_buffer);
+
+        glTexImage2D(GL_TEXTURE_2D, 0,
+                     GL_RGBA, m_framebuffer_width, m_framebuffer_height, 0,
+                     GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
         // ... et tous ses mipmaps
         glGenerateMipmap(GL_TEXTURE_2D);
 
@@ -475,11 +505,15 @@ public:
         glGenFramebuffers(1, &m_framebuffer);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_framebuffer);
         glFramebufferTexture(GL_DRAW_FRAMEBUFFER, /* attachment */ GL_COLOR_ATTACHMENT0, /* texture */ m_color_buffer, /* mipmap level */ 0);
+        glFramebufferTexture(GL_DRAW_FRAMEBUFFER, /* attachment */ GL_COLOR_ATTACHMENT1, /* texture */ m_position_buffer, /* mipmap level */ 0);
+        glFramebufferTexture(GL_DRAW_FRAMEBUFFER, /* attachment */ GL_COLOR_ATTACHMENT2, /* texture */ m_normal_buffer, /* mipmap level */ 0);
+        glFramebufferTexture(GL_DRAW_FRAMEBUFFER, /* attachment */ GL_COLOR_ATTACHMENT3, /* texture */ m_material_buffer, /* mipmap level */ 0);
+
         glFramebufferTexture(GL_DRAW_FRAMEBUFFER, /* attachment */ GL_DEPTH_ATTACHMENT, /* texture */ m_depth_buffer, /* mipmap level */ 0);
 
-        // le fragment shader ne declare qu'une seule sortie, indice 0
-        GLenum buffers[] = {GL_COLOR_ATTACHMENT0};
-        glDrawBuffers(1, buffers);
+        //le fragment shader ne declare qu'une seule sortie, indice 0
+        GLenum buffers[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3};
+        glDrawBuffers(4, buffers);
 
         // nettoyage
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
@@ -589,7 +623,6 @@ public:
         // mesure le temps d'execution du draw pour le cpu
         // utilise std::chrono pour mesurer le temps cpu
         std::chrono::high_resolution_clock::time_point cpu_start = std::chrono::high_resolution_clock::now();
-
 
 
         float time = global_time(); //same time for all robots
@@ -715,74 +748,12 @@ public:
             glUseProgram(m_program_quad);
             glBindVertexArray(quad_VertexArrayID);
 
-
-            for (int i = 0; i < 1; i++)
-            {
-                for (int j = 0; j < 1; j++)
-                {
+            program_use_texture(m_program_quad, "color_texture", 0, m_color_buffer, sampler);
 
 
+            glBindVertexArray(quad_vertexbuffer);
+            glDrawArrays(GL_TRIANGLES, 0, 2*3);
 
-                    //color
-                    //program_uniform(m_program, "color", vec4(0, 1, 0, 1));
-
-                    //textures
-                    // texture et parametres de filtrage de la texture
-                    // glActiveTexture(GL_TEXTURE0);
-                    // glBindTexture(GL_TEXTURE_2D, m_texture0);
-                    // glBindSampler(0, sampler);
-
-                    // glActiveTexture(GL_TEXTURE0+1);
-                    // glBindTexture(GL_TEXTURE_2D, m_texture1);
-                    // glBindSampler(1, sampler);
-
-                    // // uniform sampler2D declares par le fragment shader
-                    // location= glGetUniformLocation(m_program, "texture0");
-                    // glUniform1i(location, 0);
-
-                    // location= glGetUniformLocation(m_program, "texture1");
-                    // glUniform1i(location, 1);
-                    //program_use_texture(m_program, "color_texture", 0, m_texture0, sampler);
-
-                    //program_use_texture(m_program, "texture0", m_texture0, sampler);
-                    //program_use_texture(m_program, "texture1", m_texture1, sampler);
-
-
-                    //k_frame = 3;(i * j + j)
-
-                    // utilise la texture attachee au framebuffer
-                    //program_uniform(m_program, "color_texture", 1); // utilise la texture configuree sur l'unite 0
-                    program_use_texture(m_program_quad, "color_texture", 0, m_color_buffer, sampler);
-
-                    // // configure l'unite 0
-                    // glActiveTexture(GL_TEXTURE0);
-                    // glBindTexture(GL_TEXTURE_2D, m_color_buffer);
-                    // glBindSampler(0, sampler);
-
-                    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, miplevels(m_framebuffer_width, m_framebuffer_height));
-                    //glGenerateMipmap(GL_TEXTURE_2D);
-
-                    //program_uniform(m_program, "profondeur_texture", 0); // utilise la texture configuree sur l'unite 0
-                    //program_use_texture(m_program_quad, "profondeur_texture", 1, m_depth_buffer, sampler);
-
-                    // // configure l'unite 0
-                    // glActiveTexture(GL_TEXTURE0);
-                    // glBindTexture(GL_TEXTURE_2D, m_depth_buffer);
-                    // glBindSampler(0, sampler);
-
-                    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, miplevels(m_framebuffer_width, m_framebuffer_height));
-                    //glGenerateMipmap(GL_TEXTURE_2D);
-
-                      // Demander affichage -> glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-                    //glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-                    // END TODO Done
-                    //glBindVertexArray(0);
-
-
-                    glBindVertexArray(quad_vertexbuffer);
-                    glDrawArrays(GL_TRIANGLES, 0, 2*3);
-                }
-            }
         }
         else
         {
@@ -976,6 +947,10 @@ protected:
     int m_framebuffer_width;
     int m_framebuffer_height;
 
+
+    GLuint m_position_buffer;
+    GLuint m_normal_buffer;
+    GLuint m_material_buffer;
     GLuint m_color_buffer;
     GLuint m_depth_buffer;
     GLuint m_framebuffer;

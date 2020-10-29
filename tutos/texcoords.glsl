@@ -36,7 +36,7 @@ in vec3 vertex_position;
 in vec2 vertex_texcoord;
 in vec3 vertex_normal;
 
-layout(location= 0) out vec4 fragment_color;
+out vec4 fragment_color;
 
 void main( )
 {

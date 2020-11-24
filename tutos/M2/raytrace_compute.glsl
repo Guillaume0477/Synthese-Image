@@ -10,6 +10,53 @@ struct Triangle
     vec3 ac;	// arete 2
 };
 
+vec3 global( const in vec3 n) { 
+    
+    float sign= n.z < 0 ? -1.0f : 1.0f;
+    float a= -1.0f / (sign + n.z);
+    float d= n.x * n.y * a;
+    vec3 t= vec3(1.0f + sign * n.x * n.x * a, sign * d, -sign * n.x);
+    vec3 b= vec3(d, sign + n.y * n.y * a, -n.y);
+    return  vec3(n.x * t + n.y * b + n.z * n); 
+}
+
+/*
+struct World
+{
+    World( const vec3 _n ) : n(_n){
+        float sign= std::copysign(1.0f, n.z);
+        float a= -1.0f / (sign + n.z);
+        float d= n.x * n.y * a;
+        t= Vector(1.0f + sign * n.x * n.x * a, sign * d, -sign * n.x);
+        b= Vector(d, sign + n.y * n.y * a, -n.y);
+    }
+
+    // transforme le vecteur du repere local vers le repere du monde
+    Vector operator( ) ( const Vector& local )  const { return local.x * t + local.y * b + local.z * n; }
+
+    // transforme le vecteur du repere du monde vers le repere local
+    Vector inverse( const Vector& global ) const { return Vector(dot(global, t), dot(global, b), dot(global, n)); }
+
+    Vector t;
+    Vector b;
+    Vector n;
+};
+
+*/
+
+const uint rng_a= 1103515245;
+const uint rng_b= 12345;
+const uint rng_mask= (1u << 31) -1u;
+const float rng_m= 1u << 31;
+
+// renvoie un reel aleatoire dans [0 1]
+float rng( inout uint state )
+{
+    state= (rng_a * state + rng_b) & uint(rng_m);
+    return float(state) / rng_m;
+}
+
+
 // shader storage buffer 0
 layout(std430, binding= 0) readonly buffer triangleData
 {
@@ -61,21 +108,78 @@ void main( )
     vec3 o= oh.xyz / oh.w;                              // origine
     vec3 d= eh.xyz / eh.w - oh.xyz / oh.w;              // direction
 
-    float hit= 1;	// tmax = far, une intersection valide est plus proche que l'extremite du rayon / far...
-    float hitu= 0;
-    float hitv= 0;
+    float hit= 1.0;	// tmax = far, une intersection valide est plus proche que l'extremite du rayon / far...
+    float hitu= 0.0;
+    float hitv= 0.0;
+    int id;
     for(int i= 0; i < triangles.length(); i++)
     {
         float t, u, v;
         if(intersect(triangles[i], o, d, hit, t, u, v))
         {
             hit= t;
-            hitu= u;
-            hitv= v;
+            hitu=u;//1-t;//
+            hitv=v; //1-t;//
+            id=i;
         }
     }
     
+    float w = 1.0 - hitu - hitv;
+    vec3 p = triangles[id].a + hitu*triangles[id].ab + hitv*triangles[id].ac;
+    vec3 n_p = normalize(cross(triangles[id].ab,triangles[id].ac));
+
+
+
+    //vec3 d_l = normalize(vec3(0.0,0.0,1.98)-p);///
+    vec3 d_l = vec3(0.0,1.0,0.0);
+
+    if(dot(d_l, n_p) > 0){
+        n_p= -n_p;
+    }
+
+    float sign= n_p.z < 0 ? -1.0f : 1.0f;
+    float a= -1.0f / (sign + n_p.z);
+    float e= n_p.x * n_p.y * a;
+    vec3 t= vec3(1.0f + sign * n_p.x * n_p.x * a, sign * e, -sign * n_p.x);
+    vec3 b= vec3(e, sign + n_p.y * n_p.y * a, -n_p.y);
+    d_l = d_l.x * t + d_l.y * b + d_l.z * n_p; 
+    
+    
+    
+    //d_l = global(d_l);
+    int v = 1;
+    
+
+
+    float hit2= 1.0;	// tmax = far, une intersection valide est plus proche que l'extremite du rayon / far...
+    float hitu2= 0.0;
+    float hitv2= 0.0;
+    int id2;
+    for(int j= 0; j < triangles.length(); j++)
+    {
+        float t2, u2, v2;
+        if(intersect(triangles[j], p+0.0*n_p, d_l, 1000000, t2, u2, v2))
+        //if(intersect(triangles[j], p, d_l, 1000000, t2, u2, v2))
+        {
+            hit2= t2;
+            hitu2=u2;//1-t;//
+            hitv2=v2; //1-t;//
+            id2=j;
+            v = 0;
+        }
+    }
+
+    vec4 Color = vec4(0, 0, 0, 1);
+
+    if (hit < 1.0 && hit > 0){ //if dans mesh
+        //Color = vec4(hitu, hitv, 0, 1)*v;
+        Color += vec4(1-hit, 1-hit, 1-hit, 1)*(1-v);
+        Color += vec4(1-hit, 1-hit, 0, 1)*v;
+    }
+    else {
+        Color = vec4(0, 0, 1, 1);
+    }
     // ecrire le resultat dans l'image
-    imageStore(image, ivec2(gl_GlobalInvocationID.xy), vec4(hitu, hitv, 0, 1));
+    imageStore(image, ivec2(gl_GlobalInvocationID.xy), Color );
 }
 #endif

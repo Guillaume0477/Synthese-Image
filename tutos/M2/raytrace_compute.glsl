@@ -52,8 +52,32 @@ const float rng_m= 1u << 31;
 // renvoie un reel aleatoire dans [0 1]
 float rng( inout uint state )
 {
-    state= (rng_a * state + rng_b) & uint(rng_m);
+    state= (rng_a * state + rng_b) % uint(rng_m);
     return float(state) / rng_m;
+}
+
+#define M_PI 3.1415926535897932384626433832795
+
+
+// genere une direction sur l'hemisphere,
+// cf GI compendium, eq 35
+vec3 sample35(const float u1, const float u2)
+{
+    // coordonnees theta, phi
+    float cos_theta = sqrt(u1);
+    float phi = float(2 * M_PI) * u2;
+
+    // passage vers x, y, z
+    float sin_theta = sqrt(1 - cos_theta * cos_theta);
+    return vec3(cos(phi) * sin_theta, sin(phi) * sin_theta, cos_theta);
+}
+
+// evalue la densite de proba, la pdf de la direction, cf GI compendium, eq 35
+float pdf35(const vec3 w)
+{
+    if (w.z < 0)
+        return 0;
+    return w.z / float(M_PI);
 }
 
 
@@ -128,10 +152,16 @@ void main( )
     vec3 p = triangles[id].a + hitu*triangles[id].ab + hitv*triangles[id].ac;
     vec3 n_p = normalize(cross(triangles[id].ab,triangles[id].ac));
 
-
+    uint state = 1;
 
     //vec3 d_l = normalize(vec3(0.0,0.0,1.98)-p);///
-    vec3 d_l = vec3(0.0,1.0,0.0);
+    //vec3 d_l = vec3(0.0,1.0,0.0);
+    float u1 = rng(state);
+    float u2 = rng(state);
+    
+    vec3 d_l = sample35(u1,u2);
+
+  
 
     if(dot(d_l, n_p) > 0){
         n_p= -n_p;

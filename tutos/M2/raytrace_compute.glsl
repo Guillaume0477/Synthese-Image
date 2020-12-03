@@ -152,63 +152,87 @@ void main( )
     vec3 p = triangles[id].a + hitu*triangles[id].ab + hitv*triangles[id].ac;
     vec3 n_p = normalize(cross(triangles[id].ab,triangles[id].ac));
 
-    uint state = 1;
+    int N_ray = 16;
+    vec4 ambient = vec4(0.0);
+    uint state = 0;
 
-    //vec3 d_l = normalize(vec3(0.0,0.0,1.98)-p);///
-    //vec3 d_l = vec3(0.0,1.0,0.0);
-    float u1 = rng(state);
-    float u2 = rng(state);
-    
-    vec3 d_l = sample35(u1,u2);
-
-  
-
-    if(dot(d_l, n_p) > 0){
-        n_p= -n_p;
-    }
-
-    float sign= n_p.z < 0 ? -1.0f : 1.0f;
-    float a= -1.0f / (sign + n_p.z);
-    float e= n_p.x * n_p.y * a;
-    vec3 t= vec3(1.0f + sign * n_p.x * n_p.x * a, sign * e, -sign * n_p.x);
-    vec3 b= vec3(e, sign + n_p.y * n_p.y * a, -n_p.y);
-    d_l = d_l.x * t + d_l.y * b + d_l.z * n_p; 
-    
-    
-    
-    //d_l = global(d_l);
-    int v = 1;
-    
+    for (int ni = 0; ni<N_ray; ni++){
 
 
-    float hit2= 1.0;	// tmax = far, une intersection valide est plus proche que l'extremite du rayon / far...
-    float hitu2= 0.0;
-    float hitv2= 0.0;
-    int id2;
-    for(int j= 0; j < triangles.length(); j++)
-    {
-        float t2, u2, v2;
-        if(intersect(triangles[j], p+0.0*n_p, d_l, 1000000, t2, u2, v2))
-        //if(intersect(triangles[j], p, d_l, 1000000, t2, u2, v2))
+
+        //vec3 d_l = normalize(vec3(0.0,0.0,1.98)-p);///
+        //vec3 d_l = vec3(0.0,1.0,0.0);
+        float u1 = rng(state);
+        float u2 = rng(state);
+        
+        vec3 d_l = sample35(u1,u2);
+        float pdf = pdf35(d_l);
+
+        state++;
+
+        // if(dot(d_l, n_p) > 0){
+        //     n_p= -n_p;
+        // }
+
+        float sign= n_p.z < 0 ? -1.0f : 1.0f;
+        float a= -1.0f / (sign + n_p.z);
+        float e= n_p.x * n_p.y * a;
+        vec3 t= vec3(1.0f + sign * n_p.x * n_p.x * a, sign * e, -sign * n_p.x);
+        vec3 b= vec3(e, sign + n_p.y * n_p.y * a, -n_p.y);
+        d_l = d_l.x * t + d_l.y * b + d_l.z * n_p; 
+        
+        
+        
+        //d_l = global(d_l);
+        int v = 0;
+        float vu_sun = 1;
+        
+
+
+        float hit2= 1.0;	// tmax = far, une intersection valide est plus proche que l'extremite du rayon / far...
+        float hitu2= 0.0;
+        float hitv2= 0.0;
+        int id2;
+        for(int j= 0; j < triangles.length(); j++)
         {
-            hit2= t2;
-            hitu2=u2;//1-t;//
-            hitv2=v2; //1-t;//
-            id2=j;
-            v = 0;
+            float t2, u2, v2;
+            if(intersect(triangles[j], p+0.00001*n_p, d_l, 100, t2, u2, v2))
+            //if(intersect(triangles[j], p, d_l, 1000000, t2, u2, v2))
+            {
+                hit2= t2;
+                hitu2=u2;//1-t;//
+                hitv2=v2; //1-t;//
+                id2=j;
+                v = 0;
+                vu_sun = 0;
+                break;
+                
+            }
         }
+
+        if (vu_sun==1){
+            //vec4 diffuse = vec4(0,0.140,0.450,0.0911);
+            vec4 diffuse = vec4(1.0);
+            float cos_theta = max(float(0.0), dot(n_p, d_l));
+            ambient = ambient + diffuse*cos_theta / (float(M_PI)*pdf*float(N_ray));// * (cos_theta / (float(M_PI) * pdf35 * N_ray));
+        }
+
     }
+    // vec4 Color = vec4(0, 0, 0, 1);
 
-    vec4 Color = vec4(0, 0, 0, 1);
-
+    // if (hit < 1.0 && hit > 0){ //if dans mesh
+    //     //Color = vec4(hitu, hitv, 0, 1)*v;
+    //     Color += vec4(1-hit, 1-hit, 1-hit, 1)*(1-v);
+    //     Color += vec4(1-hit, 1-hit, 0, 1)*v;
+    // }
+    // else {
+    //     Color = vec4(0, 0, 1, 1);
+    // }
+    vec4 Color = vec4(0.0);
     if (hit < 1.0 && hit > 0){ //if dans mesh
-        //Color = vec4(hitu, hitv, 0, 1)*v;
-        Color += vec4(1-hit, 1-hit, 1-hit, 1)*(1-v);
-        Color += vec4(1-hit, 1-hit, 0, 1)*v;
+        Color = ambient;//vec4(0, 0, 0, 1);
     }
-    else {
-        Color = vec4(0, 0, 1, 1);
-    }
+
     // ecrire le resultat dans l'image
     imageStore(image, ivec2(gl_GlobalInvocationID.xy), Color );
 }

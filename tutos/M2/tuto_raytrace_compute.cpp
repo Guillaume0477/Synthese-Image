@@ -140,6 +140,8 @@ struct RT : public AppTime
         // compute shader
         m_program= read_program("tutos/M2/raytrace_compute.glsl");
         program_print_errors(m_program);
+
+        frame=0;
         
         // nettoyage
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -174,12 +176,19 @@ struct RT : public AppTime
         // deplace la camera
         int mx, my;
         unsigned int mb= SDL_GetRelativeMouseState(&mx, &my);
-        if(mb & SDL_BUTTON(1))              // le bouton gauche est enfonce
+        if(mb & SDL_BUTTON(1)){           // le bouton gauche est enfonce
             m_camera.rotation(mx, my);
-        else if(mb & SDL_BUTTON(3))         // le bouton droit est enfonce
-            m_camera.move(mx);
-        else if(mb & SDL_BUTTON(2))         // le bouton du milieu est enfonce
+            frame=0;
+        } 
+        else if(mb & SDL_BUTTON(3)){         // le bouton droit est enfonce
+            m_camera.move(mx); 
+            frame=0;
+        } 
+        else if(mb & SDL_BUTTON(2)){     // le bouton du milieu est enfonce
             m_camera.translation((float) mx / (float) window_width(), (float) my / (float) window_height());
+            frame=0;
+        }    
+        
         
         // recupere les transformations standards.
         Transform m= Identity();
@@ -203,6 +212,10 @@ struct RT : public AppTime
         
         // uniforms
         program_uniform(m_program, "invMatrix", T.inverse());
+
+        program_uniform(m_program, "frame", frame);
+        //glUniform1i( location(m_program, "frame"), frame)
+        frame++;
         
         // nombre de groupes de shaders pour executer un compute shader par pixel de l'image resultat. on utilise un domaine 2d...
         // le shader declare un groupe de threads de 8x8.
@@ -238,6 +251,8 @@ protected:
     GLuint m_program;
     GLuint m_texture;
     GLuint m_buffer;
+
+    int frame;
 };
 
     

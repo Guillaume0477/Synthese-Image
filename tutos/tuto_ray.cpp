@@ -332,7 +332,7 @@ Node make_leaf( const BBox& bounds, const int begin, const int end )
      void intersect( RayHit& ray ) const
      {
          Vector invd= Vector(1 / ray.d.x, 1 / ray.d.y, 1 / ray.d.z);
-         intersect(root, ray, invd);
+         intersect( ray, invd);
      }
      
      void intersect_fast( RayHit& ray ) const
@@ -401,22 +401,55 @@ Node make_leaf( const BBox& bounds, const int begin, const int end )
          return bbox;
      }
      
-     void intersect( const int index, RayHit& ray, const Vector& invd ) const
+    //  void intersect( const int index, RayHit& ray, const Vector& invd ) const
+    //  {
+    //      const Node& node= nodes[index];
+    //      if(node.bounds.intersect(ray, invd))
+    //      {
+    //          if(node.leaf())
+    //          {
+    //              for(int i= node.leaf_begin(); i < node.leaf_end(); i++)
+    //                  triangles[i].intersect(ray);
+    //          }
+    //          else // if(node.internal())
+    //          {
+    //              intersect(node.internal_left(), ray, invd);
+    //              intersect(node.internal_right(), ray, invd);
+    //          }
+    //      }
+    //  }
+
+    void intersect( RayHit& ray, const Vector& invd ) const
      {
-         const Node& node= nodes[index];
-         if(node.bounds.intersect(ray, invd))
-         {
-             if(node.leaf())
-             {
-                 for(int i= node.leaf_begin(); i < node.leaf_end(); i++)
-                     triangles[i].intersect(ray);
-             }
-             else // if(node.internal())
-             {
-                 intersect(node.internal_left(), ray, invd);
-                 intersect(node.internal_right(), ray, invd);
-             }
-         }
+
+        int stack[64];
+        int top= 0;
+        
+        // empiler la racine
+        stack[top++]= root;
+        
+        //float tmax= ray.tmax;
+        // tant qu'il y a un noeud dans la pile
+        while(top > 0)
+        {
+            int index= stack[--top];
+            
+            const Node& node= nodes[index];
+            if(node.bounds.intersect(ray, invd))
+            {
+                if(node.leaf())
+                {
+                    for(int i= node.leaf_begin(); i < node.leaf_end(); i++)
+                        triangles[i].intersect(ray);
+                }
+                else // if(node.internal())
+                {
+                    assert(top +1 < 64);       // le noeud est touche, empiler les fils
+                    stack[top++]= node.internal_left();
+                    stack[top++]= node.internal_right();
+                }
+            }
+        }
      }
      
      void intersect_fast( const int index, RayHit& ray, const Vector& invd ) const

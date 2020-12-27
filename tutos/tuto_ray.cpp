@@ -4,6 +4,9 @@
 #include <cassert>
 #include <random>
 #include <chrono>
+// #include <algorithm>
+// #include <vector>
+// #include <chrono>
 
 #include "vec.h"
 #include "mesh.h"
@@ -39,8 +42,42 @@ struct Hit
     operator bool() const { return (triangle_id != -1); } // renvoie vrai si l'intersection est initialisee...
 };
 
+
+ struct RayHit
+ {
+     Point o;            // origine
+     float t;            // p(t)= o + td, position du point d'intersection sur le rayon
+     Vector d;           // direction
+     int triangle_id;    // indice du triangle dans le mesh
+     float u, v;
+     int x, y;
+     
+     RayHit( const Point& _o, const Point& _e ) :  o(_o), t(1), d(Vector(_o, _e)), triangle_id(-1), u(), v(), x(), y() {}
+     RayHit( const Point& _o, const Point& _e, const int _x, const int _y ) :  o(_o), t(1), d(Vector(_o, _e)), triangle_id(-1), u(), v(), x(_x), y(_y) {}
+     operator bool ( ) { return (triangle_id != -1); }
+ };
+  
+  
+ struct BBoxHit
+ {
+     float tmin, tmax;
+     
+     BBoxHit() : tmin(FLT_MAX), tmax(-FLT_MAX) {}
+     BBoxHit( const float _tmin, const float _tmax ) : tmin(_tmin), tmax(_tmax) {}
+     float centroid( ) const { return (tmin + tmax) / 2; }
+     operator bool( ) const { return tmin <= tmax; }
+ };
+  
+
+
 // renvoie la normale interpolee d'un triangle.
 Vector normal(const Hit &hit, const TriangleData &triangle)
+{
+    return normalize((1 - hit.u - hit.v) * Vector(triangle.na) + hit.u * Vector(triangle.nb) + hit.v * Vector(triangle.nc));
+}
+
+// renvoie la normale interpolee d'un triangle.
+Vector normal(const RayHit &hit, const TriangleData &triangle)
 {
     return normalize((1 - hit.u - hit.v) * Vector(triangle.na) + hit.u * Vector(triangle.nb) + hit.v * Vector(triangle.nc));
 }
@@ -57,6 +94,47 @@ Point point(const Hit &hit, const Ray &ray)
     return ray.o + hit.t * ray.d;
 }
 
+
+
+struct BBox
+ {
+     Point pmin, pmax;
+     
+     BBox( ) : pmin(), pmax() {}
+     
+     BBox( const Point& p ) : pmin(p), pmax(p) {}
+     BBox( const BBox& box ) : pmin(box.pmin), pmax(box.pmax) {}
+     
+     BBox& insert( const Point& p ) { pmin= min(pmin, p); pmax= max(pmax, p); return *this; }
+     BBox& insert( const BBox& box ) { pmin= min(pmin, box.pmin); pmax= max(pmax, box.pmax); return *this; }
+     
+     float centroid( const int axis ) const { return (pmin(axis) + pmax(axis)) / 2; }
+     
+     BBoxHit intersect( const RayHit& ray ) const
+     {
+         Vector invd= Vector(1 / ray.d.x, 1 / ray.d.y, 1 / ray.d.z);
+         return intersect(ray, invd);
+     }
+     
+     BBoxHit intersect( const RayHit& ray, const Vector& invd ) const
+     {
+         Point rmin= pmin;
+         Point rmax= pmax;
+         if(ray.d.x < 0) std::swap(rmin.x, rmax.x);
+         if(ray.d.y < 0) std::swap(rmin.y, rmax.y);
+         if(ray.d.z < 0) std::swap(rmin.z, rmax.z);
+         Vector dmin= (rmin - ray.o) * invd;
+         Vector dmax= (rmax - ray.o) * invd;
+         
+         float tmin= std::max(dmin.z, std::max(dmin.y, std::max(dmin.x, 0.f)));
+         float tmax= std::min(dmax.z, std::min(dmax.y, std::min(dmax.x, ray.t)));
+         return BBoxHit(tmin, tmax);
+     }
+ };
+
+
+
+
 // triangle "intersectable".
 struct Triangle
 {
@@ -64,7 +142,8 @@ struct Triangle
     Vector e1, e2;
     int id;
 
-    Triangle(const Point &_a, const Point &_b, const Point &_c, const int _id) : p(_a), e1(Vector(_a, _b)), e2(Vector(_a, _c)), id(_id) {}
+    Triangle( const TriangleData& data, const int _id ) : p(data.a), e1(Vector(data.a, data.b)), e2(Vector(data.a, data.c)), id(_id) {}
+    // Triangle(const Point &_a, const Point &_b, const Point &_c, const int _id) : p(_a), e1(Vector(_a, _b)), e2(Vector(_a, _c)), id(_id) {}
 
     /* calcule l'intersection ray/triangle
         cf "fast, minimum storage ray-triangle intersection" 
@@ -97,8 +176,39 @@ struct Triangle
 
         return Hit(id, t, u, v); // p(u, v)= (1 - u - v) * a + u * b + v * c
     }
+    void intersect( RayHit &ray ) const
+    {
+        Vector pvec= cross(ray.d, e2);
+        float det= dot(e1, pvec);
+        
+        float inv_det= 1 / det;
+        Vector tvec(p, ray.o);
+        
+        float u= dot(tvec, pvec) * inv_det;
+        if(u < 0 || u > 1) return;
+        
+        Vector qvec= cross(tvec, e1);
+        float v= dot(ray.d, qvec) * inv_det;
+        if(v < 0 || u + v > 1) return;
+        
+        float t= dot(e2, qvec) * inv_det;
+        if(t < 0 || t > ray.t) return;
+        
+        // touche !!
+        ray.t= t;
+        ray.triangle_id= id;
+        ray.u= u;
+        ray.v= v;
+    }
+    
+    BBox bounds( ) const 
+    {
+        BBox box(p);
+        return box.insert(p+e1).insert(p+e2);
+    }
 };
 
+/*
 // ensemble de triangles.
 // a remplacer par une vraie structure acceleratrice, un bvh, par exemple
 struct BVH
@@ -146,6 +256,208 @@ struct BVH
         return true;
     }
 };
+*/
+ 
+
+struct Node
+{
+    BBox bounds;
+    int left;
+    int right;
+    
+    bool internal( ) const { return right > 0; }                        // renvoie vrai si le noeud est un noeud interne
+    int internal_left( ) const { assert(internal()); return left; }     // renvoie le fils gauche du noeud interne 
+    int internal_right( ) const { assert(internal()); return right; }   // renvoie le fils droit
+    
+    bool leaf( ) const { return right < 0; }                            // renvoie vrai si le noeud est une feuille
+    int leaf_begin( ) const { assert(leaf()); return -left; }           // renvoie le premier objet de la feuille
+    int leaf_end( ) const { assert(leaf()); return -right; }            // renvoie le dernier objet
+};
+ 
+// creation d'un noeud interne
+Node make_node( const BBox& bounds, const int left, const int right )
+{
+    Node node { bounds, left, right };
+    assert(node.internal());    // verifie que c'est bien un noeud...
+    return node;
+}
+ 
+// creation d'une feuille
+Node make_leaf( const BBox& bounds, const int begin, const int end )
+{
+    Node node { bounds, -begin, -end };
+    assert(node.leaf());        // verifie que c'est bien une feuille...
+    return node;
+}
+
+
+
+ struct triangle_less1
+ {
+     int axis;
+     float cut;
+     
+     triangle_less1( const int _axis, const float _cut ) : axis(_axis), cut(_cut) {}
+     
+     bool operator() ( const Triangle& triangle ) const
+     {
+         // re-construit l'englobant du triangle
+         BBox bounds= triangle.bounds();
+         return bounds.centroid(axis) < cut;
+     }
+ };
+  
+  
+ struct BVH
+ {
+     std::vector<Node> nodes;
+     std::vector<Triangle> triangles;
+     int root;
+     
+     int direct_tests;
+     
+     // construit un bvh pour l'ensemble de triangles
+     int build( const BBox& _bounds, const std::vector<Triangle>& _triangles )
+     {
+         triangles= _triangles;  // copie les triangles pour les trier
+         nodes.clear();          // efface les noeuds
+         nodes.reserve(triangles.size());
+         
+         // construit l'arbre... 
+         root= build(_bounds, 0, triangles.size());
+         // et renvoie la racine
+         return root;
+     }
+     
+     void intersect( RayHit& ray ) const
+     {
+         Vector invd= Vector(1 / ray.d.x, 1 / ray.d.y, 1 / ray.d.z);
+         intersect(root, ray, invd);
+     }
+     
+     void intersect_fast( RayHit& ray ) const
+     {
+         Vector invd= Vector(1 / ray.d.x, 1 / ray.d.y, 1 / ray.d.z);
+         intersect_fast(root, ray, invd);
+     }
+     
+ protected:
+     // construction d'un noeud
+     int build( const BBox& bounds, const int begin, const int end )
+     {
+         if(end - begin < 2)
+         {
+             // inserer une feuille et renvoyer son indice
+             int index= nodes.size();
+             nodes.push_back(make_leaf(bounds, begin, end));
+             return index;
+         }
+         
+         // axe le plus etire de l'englobant
+         Vector d= Vector(bounds.pmin, bounds.pmax);
+         int axis;
+         if(d.x > d.y && d.x > d.z)  // x plus grand que y et z ?
+             axis= 0;
+         else if(d.y > d.z)          // y plus grand que z ? (et que x implicitement)
+             axis= 1;
+         else                        // x et y ne sont pas les plus grands...
+             axis= 2;
+  
+         // coupe l'englobant au milieu
+         float cut= bounds.centroid(axis);
+         
+         // repartit les triangles 
+         Triangle *pm= std::partition(triangles.data() + begin, triangles.data() + end, triangle_less1(axis, cut));
+         int m= std::distance(triangles.data(), pm);
+         
+         // la repartition des triangles peut echouer, et tous les triangles sont dans la meme partie... 
+         // forcer quand meme un decoupage en 2 ensembles 
+         if(m == begin || m == end)
+             m= (begin + end) / 2;
+         assert(m != begin);
+         assert(m != end);
+         
+         // construire le fils gauche
+         // les triangles se trouvent dans [begin .. m)
+         BBox bounds_left= triangle_bounds(begin, m);
+         int left= build(bounds_left, begin, m);
+         
+         // on recommence pour le fils droit
+         // les triangles se trouvent dans [m .. end)
+         BBox bounds_right= triangle_bounds(m, end);
+         int right= build(bounds_right, m, end);
+         
+         int index= nodes.size();
+         nodes.push_back(make_node(bounds, left, right));
+         return index;
+     }
+     
+     BBox triangle_bounds( const int begin, const int end )
+     {
+         BBox bbox= triangles[begin].bounds();
+         for(int i= begin +1; i < end; i++)
+             bbox.insert(triangles[i].bounds());
+         
+         return bbox;
+     }
+     
+     void intersect( const int index, RayHit& ray, const Vector& invd ) const
+     {
+         const Node& node= nodes[index];
+         if(node.bounds.intersect(ray, invd))
+         {
+             if(node.leaf())
+             {
+                 for(int i= node.leaf_begin(); i < node.leaf_end(); i++)
+                     triangles[i].intersect(ray);
+             }
+             else // if(node.internal())
+             {
+                 intersect(node.internal_left(), ray, invd);
+                 intersect(node.internal_right(), ray, invd);
+             }
+         }
+     }
+     
+     void intersect_fast( const int index, RayHit& ray, const Vector& invd ) const
+     {
+         const Node& node= nodes[index];
+         if(node.leaf())
+         {
+             for(int i= node.leaf_begin(); i < node.leaf_end(); i++)
+                 triangles[i].intersect(ray);
+         }
+         else // if(node.internal())
+         {
+             const Node& left_node= nodes[node.left];
+             const Node& right_node= nodes[node.right];
+             
+             BBoxHit left= left_node.bounds.intersect(ray, invd);
+             BBoxHit right= right_node.bounds.intersect(ray, invd);
+             if(left && right)                                                   // les 2 fils sont touches par le rayon...
+             {
+                 if(left.centroid() < right.centroid())                          // parcours de gauche a droite
+                 {
+                     intersect_fast(node.internal_left(), ray, invd);
+                     intersect_fast(node.internal_right(), ray, invd);
+                 }
+                 else                                                            // parcours de droite a gauche                                        
+                 {
+                     intersect_fast(node.internal_right(), ray, invd);
+                     intersect_fast(node.internal_left(), ray, invd);
+                 }
+             }
+             else if(left)                                                       // uniquement le fils gauche
+                 intersect_fast(node.internal_left(), ray, invd);
+             else if(right)
+                 intersect_fast(node.internal_right(), ray, invd);               // uniquement le fils droit
+         }
+     }
+ };
+  
+
+
+
 
 struct Source
 {
@@ -299,123 +611,123 @@ float pdf35(const Vector &w)
     return w.z / float(M_PI);
 }
 
-Color color_direct_direction(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Mesh mesh, BVH bvh, int N_point_Source, Vector pn, Point p)
-{
+// Color color_direct_direction(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Mesh mesh, BVH bvh, int N_point_Source, Vector pn, Point p)
+// {
 
-    Color color = Black();
+//     Color color = Black();
 
-    for (int ni = 0; ni < N_point_Source; ni++)
-    {
+//     for (int ni = 0; ni < N_point_Source; ni++)
+//     {
 
-        float u1 = u01(rng);
-        float u2 = u01(rng);
+//         float u1 = u01(rng);
+//         float u2 = u01(rng);
 
-        // generer une direction (dans un repere local, arbitraire)
-        Vector v = sample35(u1, u2);
-        float pdf = pdf35(v);
+//         // generer une direction (dans un repere local, arbitraire)
+//         Vector v = sample35(u1, u2);
+//         float pdf = pdf35(v);
 
-        // changement de repere vers la scene
-        World world(pn);
-        Vector d = world(v);
+//         // changement de repere vers la scene
+//         World world(pn);
+//         Vector d = world(v);
 
-        // evaluer la visibilite
-        const float scale = 10;
-        // le vecteur d est de longueur 1, utiliser un vecteur plus grand, en fonction du rayon de la sphere englobante de la scene
-        // rappel : on veut savoir si le point p voit le ciel... qui est a l'exterieur de la scene.
+//         // evaluer la visibilite
+//         const float scale = 10;
+//         // le vecteur d est de longueur 1, utiliser un vecteur plus grand, en fonction du rayon de la sphere englobante de la scene
+//         // rappel : on veut savoir si le point p voit le ciel... qui est a l'exterieur de la scene.
 
-        Ray ray2(p + 0.001f * pn, d * scale);
-        //ray2.tmax = 1 - .0001f ;
-        Hit hit2 = bvh.intersect(ray2);
-        if (hit2 == true)
-        {
-            // pas de geometrie dans la direction d, p est donc eclaire par le ciel
+//         Ray ray2(p + 0.001f * pn, d * scale);
+//         //ray2.tmax = 1 - .0001f ;
+//         Hit hit2 = bvh.intersect(ray2);
+//         if (hit2 == true)
+//         {
+//             // pas de geometrie dans la direction d, p est donc eclaire par le ciel
 
-            // evaluer les termes de la fonction a integrer
-            // V(p, d) == 1, puisqu'on a pas trouve d'intersection
-            float cos_theta = std::max(float(0), dot(pn, d));
+//             // evaluer les termes de la fonction a integrer
+//             // V(p, d) == 1, puisqu'on a pas trouve d'intersection
+//             float cos_theta = std::max(float(0), dot(pn, d));
 
-            //
-            // occultation ambiante
-            //
-            //color= color + 1 / float(M_PI) * material.diffuse * cos_theta / (pdf*N_point_Source);
+//             //
+//             // occultation ambiante
+//             //
+//             //color= color + 1 / float(M_PI) * material.diffuse * cos_theta / (pdf*N_point_Source);
 
-            const Material &material2 = mesh.triangle_material(hit2.triangle_id);
-            Color emission_si = material2.emission;
+//             const Material &material2 = mesh.triangle_material(hit2.triangle_id);
+//             Color emission_si = material2.emission;
 
-            const TriangleData &triangle2 = mesh.triangle(hit2.triangle_id);
-            Vector sn = normal(hit2, triangle2);
-            Point p_sn = point(hit2, ray2);
+//             const TriangleData &triangle2 = mesh.triangle(hit2.triangle_id);
+//             Vector sn = normal(hit2, triangle2);
+//             Point p_sn = point(hit2, ray2);
 
-            float cos_theta_s = std::max(0.f, dot(sn, normalize(-d)));
-            //
-            // full calcul
-            //
-            color = color + emission_si * material.diffuse * cos_theta_s * cos_theta * 1.f / (length2(p_sn - p) * N_point_Source * pdf);
-            //color= color +  emission_si*material.diffuse* cos_theta * 1.f / (N_point_Source*pdf );
-            //color= color +  emission_si*material.diffuse* float(M_PI)* 1.f / (N_point_Source);
-        }
-    }
-    return color;
-}
+//             float cos_theta_s = std::max(0.f, dot(sn, normalize(-d)));
+//             //
+//             // full calcul
+//             //
+//             color = color + emission_si * material.diffuse * cos_theta_s * cos_theta * 1.f / (length2(p_sn - p) * N_point_Source * pdf);
+//             //color= color +  emission_si*material.diffuse* cos_theta * 1.f / (N_point_Source*pdf );
+//             //color= color +  emission_si*material.diffuse* float(M_PI)* 1.f / (N_point_Source);
+//         }
+//     }
+//     return color;
+// }
 
-Color color_direct_direction_emission(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Mesh mesh, BVH bvh, int N_point_Source, Vector pn, Point p)
-{
+// Color color_direct_direction_emission(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Mesh mesh, BVH bvh, int N_point_Source, Vector pn, Point p)
+// {
 
-    Color color = Black();
+//     Color color = Black();
 
-    for (int ni = 0; ni < N_point_Source; ni++)
-    {
+//     for (int ni = 0; ni < N_point_Source; ni++)
+//     {
 
-        float u1 = u01(rng);
-        float u2 = u01(rng);
+//         float u1 = u01(rng);
+//         float u2 = u01(rng);
 
-        // generer une direction (dans un repere local, arbitraire)
-        Vector v = sample35(u1, u2);
-        float pdf = pdf35(v);
+//         // generer une direction (dans un repere local, arbitraire)
+//         Vector v = sample35(u1, u2);
+//         float pdf = pdf35(v);
 
-        // changement de repere vers la scene
-        World world(pn);
-        Vector d = world(v);
+//         // changement de repere vers la scene
+//         World world(pn);
+//         Vector d = world(v);
 
-        // evaluer la visibilite
-        const float scale = 10;
-        // le vecteur d est de longueur 1, utiliser un vecteur plus grand, en fonction du rayon de la sphere englobante de la scene
-        // rappel : on veut savoir si le point p voit le ciel... qui est a l'exterieur de la scene.
+//         // evaluer la visibilite
+//         const float scale = 10;
+//         // le vecteur d est de longueur 1, utiliser un vecteur plus grand, en fonction du rayon de la sphere englobante de la scene
+//         // rappel : on veut savoir si le point p voit le ciel... qui est a l'exterieur de la scene.
 
-        Ray ray2(p + 0.001f * pn, d * scale);
-        //ray2.tmax = 1 - .0001f ;
-        Hit hit2 = bvh.intersect(ray2);
-        if (hit2 == true)
-        {
-            // pas de geometrie dans la direction d, p est donc eclaire par le ciel
+//         Ray ray2(p + 0.001f * pn, d * scale);
+//         //ray2.tmax = 1 - .0001f ;
+//         Hit hit2 = bvh.intersect(ray2);
+//         if (hit2 == true)
+//         {
+//             // pas de geometrie dans la direction d, p est donc eclaire par le ciel
 
-            // evaluer les termes de la fonction a integrer
-            // V(p, d) == 1, puisqu'on a pas trouve d'intersection
-            float cos_theta = std::max(float(0), dot(pn, d));
+//             // evaluer les termes de la fonction a integrer
+//             // V(p, d) == 1, puisqu'on a pas trouve d'intersection
+//             float cos_theta = std::max(float(0), dot(pn, d));
 
-            //
-            // occultation ambiante
-            //
-            //color= color + 1 / float(M_PI) * material.diffuse * cos_theta / (pdf*N_point_Source);
+//             //
+//             // occultation ambiante
+//             //
+//             //color= color + 1 / float(M_PI) * material.diffuse * cos_theta / (pdf*N_point_Source);
 
-            const Material &material2 = mesh.triangle_material(hit2.triangle_id);
-            Color emission_si = material2.emission;
+//             const Material &material2 = mesh.triangle_material(hit2.triangle_id);
+//             Color emission_si = material2.emission;
 
-            const TriangleData &triangle2 = mesh.triangle(hit2.triangle_id);
-            Vector sn = normal(hit2, triangle2);
-            Point p_sn = point(hit2, ray2);
+//             const TriangleData &triangle2 = mesh.triangle(hit2.triangle_id);
+//             Vector sn = normal(hit2, triangle2);
+//             Point p_sn = point(hit2, ray2);
 
-            float cos_theta_s = std::max(0.f, dot(sn, normalize(-d)));
-            //
-            // full calcul
-            //
-            //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * 1.f / (length2(p_sn-p)*N_point_Source*pdf );
-            color = color + emission_si * material.diffuse * cos_theta * 1.f / (N_point_Source * pdf);
-            //color= color +  emission_si*material.diffuse* float(M_PI)* 1.f / (N_point_Source);
-        }
-    }
-    return color;
-}
+//             float cos_theta_s = std::max(0.f, dot(sn, normalize(-d)));
+//             //
+//             // full calcul
+//             //
+//             //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * 1.f / (length2(p_sn-p)*N_point_Source*pdf );
+//             color = color + emission_si * material.diffuse * cos_theta * 1.f / (N_point_Source * pdf);
+//             //color= color +  emission_si*material.diffuse* float(M_PI)* 1.f / (N_point_Source);
+//         }
+//     }
+//     return color;
+// }
 
 Color color_ambiant_direction(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Mesh mesh, BVH bvh, int N_point_Source, Vector pn, Point p)
 {
@@ -441,10 +753,15 @@ Color color_ambiant_direction(std::default_random_engine &rng, std::uniform_real
         // le vecteur d est de longueur 1, utiliser un vecteur plus grand, en fonction du rayon de la sphere englobante de la scene
         // rappel : on veut savoir si le point p voit le ciel... qui est a l'exterieur de la scene.
 
-        Ray ray2(p + 0.001f * pn, d * scale);
+        RayHit ray2(p + 0.001f * pn, d * scale - (p + 0.001f * pn));
         //ray2.tmax = 1 - .0001f ;
-        Hit hit2 = bvh.intersect(ray2);
-        if (hit2 == false)
+        //Hit hit2 = bvh.intersect(ray2);
+
+
+        bvh.intersect(ray2);
+        // if (hit2 == false)
+        // {
+        if (ray2 == false)
         {
             // pas de geometrie dans la direction d, p est donc eclaire par le ciel
 
@@ -456,7 +773,7 @@ Color color_ambiant_direction(std::default_random_engine &rng, std::uniform_real
             // occultation ambiante
             //
             color = color + 1 * material.diffuse * cos_theta / (float(M_PI) * pdf * N_point_Source);
-
+            //std::cout<<material.diffuse.r<<material.diffuse.g<<material.diffuse.b<<material.diffuse.a<<std::endl;
             // const Material& material2= mesh.triangle_material(hit2.triangle_id);
             // Color emission_si = material2.emission;
 
@@ -476,568 +793,571 @@ Color color_ambiant_direction(std::default_random_engine &rng, std::uniform_real
     return color;
 }
 
-Color color_direct_sources_cornell(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Sources sources, BVH bvh, int N_Source, int N_point_Source, Vector pn, Point p)
-{
-
-    Color color = Black();
-
-    for (int ni = 0; ni < N_point_Source; ni++)
-    {
-        //
-        // random source
-        //
-        int si = (int)N_Source * u01(rng);
-
-        //
-        // random source according area
-        //
-        // int si;
-        // int P_si = (int) sources.area*u01(rng); //entre 0 et 20000
-        // if (P_si <= 5000){
-        //     si=N_Source-1;
-        // }
-        // else if (P_si <= 10000){
-        //     si=N_Source-2;
-        // }
-        // else {
-        //     si = (int) (N_Source-2)* u01(rng);
-        // }
-
-        // position et emission de la source de lumiere si
-        float u1 = u01(rng);
-        float u2 = u01(rng);
-
-        //Point s= (Point(sources(si).a) + Point(sources(si).b) + Point(sources(si).c))/3.0;
-        Point s = sources(si).sample(u1, u2);
-        Color emission_si = sources(si).emission;
-
-        // direction de p vers la source s
-        Vector p_to_s = Vector(p, s);
-
-        // visibilite entre p et s
-        float v = 1;
-
-        //rayon de p vers s
-        Ray shadow_ray(p + 0.0001f * pn, p_to_s); //+ 0.001f * pn
-        shadow_ray.tmax = 1 - .0001f;             //
-
-        //if(bvh.visible(shadow_ray) != 1)
-        if (Hit hit2 = bvh.intersect(shadow_ray))
-        {
-            // on vient de trouver un triangle entre p et s. p est donc a l'ombre
-            v = 0;
-        }
-
-        Vector sn = sources(si).n; // normale du triangle au point de la source  interpolee ?
-
-        // accumuler la couleur de l'echantillon
-        float cos_theta = std::max(0.f, dot(pn, normalize(p_to_s)));
-        float cos_theta_s = std::max(0.f, dot(sn, normalize(-p_to_s)));
-        //
-        // random source
-        //
-        color = color + emission_si * material.diffuse * cos_theta_s * cos_theta * v * 1.f / (length2(p_to_s) * N_point_Source * N_Source * sources(si).pdf(s));
-
-        //
-        // random source according area
-        //
-        //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * sources.area * 1.f / (length2(p_to_s)*N_point_Source );
-    }
-    return color;
-}
-
-Color color_indirect_direction(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Mesh mesh, Sources sources, BVH bvh, int N_point_Source, int N_Source, Vector pn, Point p)
-{
-
-    Color color = Black();
-
-    for (int ni = 0; ni < N_point_Source; ni++)
-    {
-
-        float u1 = u01(rng);
-        float u2 = u01(rng);
-
-        // generer une direction (dans un repere local, arbitraire)
-        Vector v = sample35(u1, u2);
-        float pdf = pdf35(v);
-
-        // changement de repere vers la scene
-        World world(pn);
-        Vector d = world(v);
-
-        // evaluer la visibilite
-        const float scale = 10;
-        // le vecteur d est de longueur 1, utiliser un vecteur plus grand, en fonction du rayon de la sphere englobante de la scene
-        // rappel : on veut savoir si le point p voit le ciel... qui est a l'exterieur de la scene.
-
-        Ray ray2(p + 0.001f * pn, d * scale);
-        //ray2.tmax = 1 - .0001f ;
-        Hit hit2 = bvh.intersect(ray2);
-        if (hit2 == true)
-        {
-            // pas de geometrie dans la direction d, p est donc eclaire par le ciel
-
-            // evaluer les termes de la fonction a integrer
-            // V(p, d) == 1, puisqu'on a pas trouve d'intersection
-            float cos_theta = std::max(float(0), dot(pn, d));
-
-            const Material &material2 = mesh.triangle_material(hit2.triangle_id);
-            //Color emission_q = material2.emission;
-
-            const TriangleData &triangle2 = mesh.triangle(hit2.triangle_id);
-            Vector qn = normal(hit2, triangle2);
-            Point p_qn = point(hit2, ray2);
-
-            float cos_theta_s = std::max(0.f, dot(qn, normalize(-d)));
-            int N_point_Source_direct = 4;
-
-            Color emission_q = color_direct_sources_cornell(rng, u01, material2, sources, bvh, N_Source, N_point_Source_direct, qn, p_qn);
-            //color= color +  emission_q*material.diffuse* cos_theta_s* cos_theta * 1.f / (length2(p_qn-p)*N_point_Source*pdf );
-            //
-            // occultation ambiante
-            //
-            color = color + emission_q * material.diffuse * cos_theta / (pdf * N_point_Source);
-
-            // //
-            // // full calcul
-            // //
-            //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * 1.f / (length2(p_sn-p)*N_point_Source*pdf );
-            //color= color +  emission_si*material.diffuse* cos_theta * 1.f / (N_point_Source*pdf );
-            //color= color +  emission_si*material.diffuse* float(M_PI)* 1.f / (N_point_Source);
-        }
-    }
-    return color;
-}
-
-Color color_direct_sources_random_emission(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Sources sources, BVH bvh, int N_Source, int N_point_Source, Vector pn, Point p)
-{
-
-    Color color = Black();
-
-    for (int ni = 0; ni < N_point_Source; ni++)
-    {
-        //
-        // random source
-        //
-        int si = (int)N_Source * u01(rng);
-
-        //
-        // random source according area
-        //
-        // int si;
-        // int P_si = (int) sources.area*u01(rng); //entre 0 et 20000
-        // if (P_si <= 5000){
-        //     si=N_Source-1;
-        // }
-        // else if (P_si <= 10000){
-        //     si=N_Source-2;
-        // }
-        // else {
-        //     si = (int) (N_Source-2)* u01(rng);
-        // }
-
-        // position et emission de la source de lumiere si
-        float u1 = u01(rng);
-        float u2 = u01(rng);
-
-        //Point s= (Point(sources(si).a) + Point(sources(si).b) + Point(sources(si).c))/3.0;
-        Point s = sources(si).sample(u1, u2);
-        Color emission_si = sources(si).emission;
-
-        // direction de p vers la source s
-        Vector p_to_s = Vector(p, s);
-
-        // visibilite entre p et s
-        float v = 1;
-
-        //rayon de p vers s
-        Ray shadow_ray(p + 0.0001f * pn, p_to_s); //+ 0.001f * pn
-        shadow_ray.tmax = 1 - .0001f;             //
-
-        //if(bvh.visible(shadow_ray) != 1)
-        if (Hit hit2 = bvh.intersect(shadow_ray))
-        {
-            // on vient de trouver un triangle entre p et s. p est donc a l'ombre
-            v = 0;
-        }
-
-        Vector sn = sources(si).n; // normale du triangle au point de la source  interpolee ?
-
-        // accumuler la couleur de l'echantillon
-        float cos_theta = std::max(0.f, dot(pn, normalize(p_to_s)));
-        float cos_theta_s = std::max(0.f, dot(sn, normalize(-p_to_s)));
-        //
-        // random source
-        //
-        color = color + emission_si * material.diffuse * cos_theta_s * cos_theta * sources.area * v * 1.f / (length2(p_to_s) * N_point_Source * N_Source * sources(si).pdf(s));
-
-        //
-        // random source according area
-        //
-        //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * sources.area * 1.f / (length2(p_to_s)*N_point_Source );
-    }
-    return color;
-}
-
-Color color_direct_sources_Area_emission(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Sources sources, BVH bvh, int N_Source, int N_point_Source, Vector pn, Point p)
-{
-
-    Color color = Black();
-
-    for (int ni = 0; ni < N_point_Source; ni++)
-    {
-        //
-        // random source
-        //
-        //int si = (int) N_Source* u01(rng);
-
-        //
-        // random source according area
-        //
-        int si;
-        int P_si = (int)sources.area * u01(rng); //entre 0 et 20000
-        if (P_si <= 5000)
-        {
-            si = N_Source - 1;
-        }
-        else if (P_si <= 10000)
-        {
-            si = N_Source - 2;
-        }
-        else
-        {
-            si = (int)(N_Source - 2) * u01(rng);
-        }
-
-        // position et emission de la source de lumiere si
-        float u1 = u01(rng);
-        float u2 = u01(rng);
-
-        //Point s= (Point(sources(si).a) + Point(sources(si).b) + Point(sources(si).c))/3.0;
-        Point s = sources(si).sample(u1, u2);
-        Color emission_si = sources(si).emission;
-
-        // direction de p vers la source s
-        Vector p_to_s = Vector(p, s);
-
-        // visibilite entre p et s
-        float v = 1;
-
-        //rayon de p vers s
-        Ray shadow_ray(p + 0.0001f * pn, p_to_s); //+ 0.001f * pn
-        shadow_ray.tmax = 1 - .0001f;             //
-
-        //if(bvh.visible(shadow_ray) != 1)
-        if (Hit hit2 = bvh.intersect(shadow_ray))
-        {
-            // on vient de trouver un triangle entre p et s. p est donc a l'ombre
-            v = 0;
-        }
-
-        Vector sn = sources(si).n; // normale du triangle au point de la source  interpolee ?
-
-        // accumuler la couleur de l'echantillon
-        float cos_theta = std::max(0.f, dot(pn, normalize(p_to_s)));
-        float cos_theta_s = std::max(0.f, dot(sn, normalize(-p_to_s)));
-        //
-        // random source
-        //
-        //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta* sources.area * v * 1.f / (length2(p_to_s)*N_point_Source*N_Source*sources(si).pdf(s) );
-
-        //
-        // random source according area
-        //
-        color = color + emission_si * material.diffuse * cos_theta_s * cos_theta * v * sources.area * 1.f / (length2(p_to_s) * N_point_Source);
-    }
-    return color;
-}
-
-Color color_Ultime(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Mesh mesh, Sources sources, BVH bvh, int N_Source, int N_point_Source, Vector pn, Point p)
-{
-
-    Color color = Black();
-    Color I1 = Black();
-    Color I2 = Black();
-
-    for (int ni = 0; ni < N_point_Source; ni++)
-    {
-        //
-        // random source
-        //
-        //int si = (int) N_Source* u01(rng);
-
-        //
-        // random source according area
-        //
-        int si;
-        int P_si = (int)sources.area * u01(rng); //entre 0 et 20000
-        if (P_si <= 5000)
-        {
-            si = N_Source - 1;
-        }
-        else if (P_si <= 10000)
-        {
-            si = N_Source - 2;
-        }
-        else
-        {
-            si = (int)(N_Source - 2) * u01(rng);
-        }
-        float P1y1 = 1 / sources.area;
-        float P1y2 = 1 / sources.area;
-
-        //std::cout<<"area"<<sources(si).area<<std::endl;
-        // position et emission de la source de lumiere si
-        float u1 = u01(rng);
-        float u2 = u01(rng);
-
-        //Point s= (Point(sources(si).a) + Point(sources(si).b) + Point(sources(si).c))/3.0;
-        Point s = sources(si).sample(u1, u2); ///s = Y1i
-        Color emission_si = sources(si).emission;
-
-        //Point p= (Point(data.a) + Point(data.b) + Point(data.c)) / 3;
-        // interpoler la normale au point d'intersection
-        //Vector pn= normal(mesh, hit);
-        // direction de p vers la source s
-        Vector l = Vector(p, s);
-
-        // visibilite entre p et s
-        float vu = 1;
-
-        Ray shadow_ray(p + 0.0001f * pn, l); //+ 0.001f * pn
-        shadow_ray.tmax = 1 - .0001f;        //
-
-        //if(bvh.visible(shadow_ray) != 1)
-        if (Hit hit2 = bvh.intersect(shadow_ray))
-        {
-            // on vient de trouver un triangle entre p et s. p est donc a l'ombre
-            vu = 0;
-        }
-
-        Vector sn = sources(si).n; // normale du triangle au point de la source  interpolee ?
-
-        // accumuler la couleur de l'echantillon
-        float cos_theta1 = std::max(0.f, dot(pn, normalize(l)));
-        float cos_theta_s1 = std::max(0.f, dot(sn, normalize(-l)));
-        //
-        // random source
-        //
-        //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * 1.f / (length2(l)*N_point_Source*N_Source*sources(si).pdf(s) );
-
-        //
-        // random source according area
-        //
-        //I1= emission_si*material.diffuse* cos_theta_s1* cos_theta1 * vu * 1.f / (length2(l)*N_point_Source );
-        I1 = emission_si * material.diffuse * cos_theta_s1 * cos_theta1 * vu * sources.area * 1.f / (length2(l) * N_point_Source);
-
-        float u12 = u01(rng);
-        float u22 = u01(rng);
-
-        // generer une direction (dans un repere local, arbitraire)
-        Vector v = sample35(u12, u22);
-        float pdf = pdf35(v);
-
-        // changement de repere vers la scene
-        World world(pn);
-        Vector d = world(v);
-
-        // evaluer la visibilite
-        const float scale = 10;
-        // le vecteur d est de longueur 1, utiliser un vecteur plus grand, en fonction du rayon de la sphere englobante de la scene
-        // rappel : on veut savoir si le point p voit le ciel... qui est a l'exterieur de la scene.
-
-        Ray ray2(p + 0.001f * pn, d * scale);
-        //ray2.tmax = 1 - .0001f ;
-        Hit hit2 = bvh.intersect(ray2);
-
-        float P2y1;
-        float P2y2;
-
-        if (hit2 == true)
-        {
-            // pas de geometrie dans la direction d, p est donc eclaire par le ciel
-
-            // evaluer les termes de la fonction a integrer
-            // V(p, d) == 1, puisqu'on a pas trouve d'intersection
-            float cos_theta2 = std::max(float(0), dot(pn, d));
-
-            //
-            // occultation ambiante
-            //
-            //color= color + 1 / float(M_PI) * material.diffuse * cos_theta / (pdf*N_point_Source);
-
-            const Material &material2 = mesh.triangle_material(hit2.triangle_id);
-            Color emission_si = material2.emission;
-
-            const TriangleData &triangle2 = mesh.triangle(hit2.triangle_id);
-            Vector sn = normal(hit2, triangle2);
-            Point p_sn = point(hit2, ray2); ///p_sn = Y2i
-
-            float cos_theta_s2 = std::max(0.f, dot(sn, normalize(-d)));
-            //std::cout<<cos_theta2/float(M_PI)<<"  "<<pdf<<std::endl;
-
-            P2y2 = pdf * cos_theta_s2 / (length2(p_sn - p));
-            P2y1 = cos_theta1 * cos_theta_s1 / (float(M_PI) * length2(l));
-            //
-            // full calcul
-            //
-            //I2= emission_si*material.diffuse* cos_theta_s2* cos_theta2 * 1.f / (length2(p_sn-p)*N_point_Source*pdf );
-            //I2 = emission_si*material.diffuse* cos_theta2 * 1.f / (N_point_Source*pdf );
-            I2 = (emission_si * material.diffuse * float(M_PI) * 1.f / (N_point_Source));
-        }
-
-        color = color + (P1y1 / (P1y1 + P2y1)) * I1 + (P2y2 / (P1y2 + P2y2)) * I2;
-    }
-
-    return color;
-}
-
-Color color_Ultime_modified(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Mesh mesh, Sources sources, BVH bvh, int N_Source, int N_point_Source, Vector pn, Point p)
-{
-
-    Color color = Black();
-    Color I1 = Black();
-    Color I2 = Black();
-
-    for (int ni = 0; ni < N_point_Source; ni++)
-    {
-        //
-        // random source
-        //
-        //int si = (int) N_Source* u01(rng);
-
-        //
-        // random source according area
-        //
-        int si;
-        int P_si = (int)sources.area * u01(rng); //entre 0 et 20000
-        if (P_si <= 5000)
-        {
-            si = N_Source - 1;
-        }
-        else if (P_si <= 10000)
-        {
-            si = N_Source - 2;
-        }
-        else
-        {
-            si = (int)(N_Source - 2) * u01(rng);
-        }
-        float P1y1 = 1 / sources.area;
-        float P1y2 = 1 / sources.area;
-
-        //std::cout<<"area"<<sources(si).area<<std::endl;
-        // position et emission de la source de lumiere si
-        float u1 = u01(rng);
-        float u2 = u01(rng);
-
-        //Point s= (Point(sources(si).a) + Point(sources(si).b) + Point(sources(si).c))/3.0;
-        Point s = sources(si).sample(u1, u2); ///s = Y1i
-        Color emission_si = sources(si).emission;
-
-        //Point p= (Point(data.a) + Point(data.b) + Point(data.c)) / 3;
-        // interpoler la normale au point d'intersection
-        //Vector pn= normal(mesh, hit);
-        // direction de p vers la source s
-        Vector l = Vector(p, s);
-
-        // visibilite entre p et s
-        float vu = 1;
-
-        Ray shadow_ray(p + 0.0001f * pn, l); //+ 0.001f * pn
-        shadow_ray.tmax = 1 - .0001f;        //
-
-        //if(bvh.visible(shadow_ray) != 1)
-        if (Hit hit2 = bvh.intersect(shadow_ray))
-        {
-            // on vient de trouver un triangle entre p et s. p est donc a l'ombre
-            vu = 0;
-        }
-
-        Vector sn = sources(si).n; // normale du triangle au point de la source  interpolee ?
-
-        // accumuler la couleur de l'echantillon
-        float cos_theta1 = std::max(0.f, dot(pn, normalize(l)));
-        float cos_theta_s1 = std::max(0.f, dot(sn, normalize(-l)));
-        //
-        // random source
-        //
-        //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * 1.f / (length2(l)*N_point_Source*N_Source*sources(si).pdf(s) );
-
-        //
-        // random source according area
-        //
-        //I1= emission_si*material.diffuse* cos_theta_s1* cos_theta1 * vu * 1.f / (length2(l)*N_point_Source );
-        I1 = emission_si * material.diffuse * cos_theta_s1 * cos_theta1 * vu * sources.area * 1.f / (length2(l) * N_point_Source);
-
-        float u12 = u01(rng);
-        float u22 = u01(rng);
-
-        // generer une direction (dans un repere local, arbitraire)
-        Vector v = sample35(u12, u22);
-        float pdf = pdf35(v);
-
-        // changement de repere vers la scene
-        World world(pn);
-        Vector d = world(v);
-
-        // evaluer la visibilite
-        const float scale = 10;
-        // le vecteur d est de longueur 1, utiliser un vecteur plus grand, en fonction du rayon de la sphere englobante de la scene
-        // rappel : on veut savoir si le point p voit le ciel... qui est a l'exterieur de la scene.
-
-        Ray ray2(p + 0.001f * pn, d * scale);
-        //ray2.tmax = 1 - .0001f ;
-        Hit hit2 = bvh.intersect(ray2);
-
-        float P2y1;
-        float P2y2;
-
-        if (hit2 == true)
-        {
-            // pas de geometrie dans la direction d, p est donc eclaire par le ciel
-
-            // evaluer les termes de la fonction a integrer
-            // V(p, d) == 1, puisqu'on a pas trouve d'intersection
-            float cos_theta2 = std::max(float(0), dot(pn, d));
-
-            //
-            // occultation ambiante
-            //
-            //color= color + 1 / float(M_PI) * material.diffuse * cos_theta / (pdf*N_point_Source);
-
-            const Material &material2 = mesh.triangle_material(hit2.triangle_id);
-            Color emission_si = material2.emission;
-
-            const TriangleData &triangle2 = mesh.triangle(hit2.triangle_id);
-            Vector sn = normal(hit2, triangle2);
-            Point p_sn = point(hit2, ray2); ///p_sn = Y2i
-
-            float cos_theta_s2 = std::max(0.f, dot(sn, normalize(-d)));
-            //std::cout<<cos_theta2/float(M_PI)<<"  "<<pdf<<std::endl;
-
-            P2y2 = pdf * cos_theta_s2 / (length2(p_sn - p));
-            P2y1 = cos_theta1 * cos_theta_s1 / (float(M_PI) * length2(l));
-            //
-            // full calcul
-            //
-            //I2= emission_si*material.diffuse* cos_theta_s2* cos_theta2 * 1.f / (length2(p_sn-p)*N_point_Source*pdf );
-            //I2 = emission_si*material.diffuse* cos_theta2 * 1.f / (N_point_Source*pdf );
-            I2 = (emission_si * material.diffuse * 1.f / (N_point_Source));
-        }
-
-        color = color + (P1y1 / (P1y1 + P2y1)) * I1 + (P2y2 / (P1y2 + P2y2)) * I2;
-    }
-
-    return color;
-}
+// Color color_direct_sources_cornell(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Sources sources, BVH bvh, int N_Source, int N_point_Source, Vector pn, Point p)
+// {
+
+//     Color color = Black();
+
+//     for (int ni = 0; ni < N_point_Source; ni++)
+//     {
+//         //
+//         // random source
+//         //
+//         int si = (int)N_Source * u01(rng);
+
+//         //
+//         // random source according area
+//         //
+//         // int si;
+//         // int P_si = (int) sources.area*u01(rng); //entre 0 et 20000
+//         // if (P_si <= 5000){
+//         //     si=N_Source-1;
+//         // }
+//         // else if (P_si <= 10000){
+//         //     si=N_Source-2;
+//         // }
+//         // else {
+//         //     si = (int) (N_Source-2)* u01(rng);
+//         // }
+
+//         // position et emission de la source de lumiere si
+//         float u1 = u01(rng);
+//         float u2 = u01(rng);
+
+//         //Point s= (Point(sources(si).a) + Point(sources(si).b) + Point(sources(si).c))/3.0;
+//         Point s = sources(si).sample(u1, u2);
+//         //std::cout<<s<<std::endl;
+//         break;
+        
+//         Color emission_si = sources(si).emission;
+
+//         // direction de p vers la source s
+//         Vector p_to_s = Vector(p, s);
+
+//         // visibilite entre p et s
+//         float v = 1;
+
+//         //rayon de p vers s
+//         Ray shadow_ray(p + 0.0001f * pn, p_to_s); //+ 0.001f * pn
+//         shadow_ray.tmax = 1 - .0001f;             //
+
+//         //if(bvh.visible(shadow_ray) != 1)
+//         if (Hit hit2 = bvh.intersect(shadow_ray))
+//         {
+//             // on vient de trouver un triangle entre p et s. p est donc a l'ombre
+//             v = 0;
+//         }
+
+//         Vector sn = sources(si).n; // normale du triangle au point de la source  interpolee ?
+
+//         // accumuler la couleur de l'echantillon
+//         float cos_theta = std::max(0.f, dot(pn, normalize(p_to_s)));
+//         float cos_theta_s = std::max(0.f, dot(sn, normalize(-p_to_s)));
+//         //
+//         // random source
+//         //
+//         color = color + emission_si * material.diffuse * cos_theta_s * cos_theta * v * 1.f / (length2(p_to_s) * N_point_Source * N_Source * sources(si).pdf(s));
+
+//         //
+//         // random source according area
+//         //
+//         //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * sources.area * 1.f / (length2(p_to_s)*N_point_Source );
+//     }
+//     return color;
+// }
+
+// Color color_indirect_direction(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Mesh mesh, Sources sources, BVH bvh, int N_point_Source, int N_Source, Vector pn, Point p)
+// {
+
+//     Color color = Black();
+
+//     for (int ni = 0; ni < N_point_Source; ni++)
+//     {
+
+//         float u1 = u01(rng);
+//         float u2 = u01(rng);
+
+//         // generer une direction (dans un repere local, arbitraire)
+//         Vector v = sample35(u1, u2);
+//         float pdf = pdf35(v);
+
+//         // changement de repere vers la scene
+//         World world(pn);
+//         Vector d = world(v);
+
+//         // evaluer la visibilite
+//         const float scale = 10;
+//         // le vecteur d est de longueur 1, utiliser un vecteur plus grand, en fonction du rayon de la sphere englobante de la scene
+//         // rappel : on veut savoir si le point p voit le ciel... qui est a l'exterieur de la scene.
+
+//         Ray ray2(p + 0.001f * pn, d * scale);
+//         //ray2.tmax = 1 - .0001f ;
+//         Hit hit2 = bvh.intersect(ray2);
+//         if (hit2 == true)
+//         {
+//             // pas de geometrie dans la direction d, p est donc eclaire par le ciel
+
+//             // evaluer les termes de la fonction a integrer
+//             // V(p, d) == 1, puisqu'on a pas trouve d'intersection
+//             float cos_theta = std::max(float(0), dot(pn, d));
+
+//             const Material &material2 = mesh.triangle_material(hit2.triangle_id);
+//             //Color emission_q = material2.emission;
+
+//             const TriangleData &triangle2 = mesh.triangle(hit2.triangle_id);
+//             Vector qn = normal(hit2, triangle2);
+//             Point p_qn = point(hit2, ray2);
+
+//             float cos_theta_s = std::max(0.f, dot(qn, normalize(-d)));
+//             int N_point_Source_direct = 4;
+
+//             Color emission_q = color_direct_sources_cornell(rng, u01, material2, sources, bvh, N_Source, N_point_Source_direct, qn, p_qn);
+//             //color= color +  emission_q*material.diffuse* cos_theta_s* cos_theta * 1.f / (length2(p_qn-p)*N_point_Source*pdf );
+//             //
+//             // occultation ambiante
+//             //
+//             color = color + emission_q * material.diffuse * cos_theta / (pdf * N_point_Source);
+
+//             // //
+//             // // full calcul
+//             // //
+//             //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * 1.f / (length2(p_sn-p)*N_point_Source*pdf );
+//             //color= color +  emission_si*material.diffuse* cos_theta * 1.f / (N_point_Source*pdf );
+//             //color= color +  emission_si*material.diffuse* float(M_PI)* 1.f / (N_point_Source);
+//         }
+//     }
+//     return color;
+// }
+
+// Color color_direct_sources_random_emission(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Sources sources, BVH bvh, int N_Source, int N_point_Source, Vector pn, Point p)
+// {
+
+//     Color color = Black();
+
+//     for (int ni = 0; ni < N_point_Source; ni++)
+//     {
+//         //
+//         // random source
+//         //
+//         int si = (int)N_Source * u01(rng);
+
+//         //
+//         // random source according area
+//         //
+//         // int si;
+//         // int P_si = (int) sources.area*u01(rng); //entre 0 et 20000
+//         // if (P_si <= 5000){
+//         //     si=N_Source-1;
+//         // }
+//         // else if (P_si <= 10000){
+//         //     si=N_Source-2;
+//         // }
+//         // else {
+//         //     si = (int) (N_Source-2)* u01(rng);
+//         // }
+
+//         // position et emission de la source de lumiere si
+//         float u1 = u01(rng);
+//         float u2 = u01(rng);
+
+//         //Point s= (Point(sources(si).a) + Point(sources(si).b) + Point(sources(si).c))/3.0;
+//         Point s = sources(si).sample(u1, u2);
+//         Color emission_si = sources(si).emission;
+
+//         // direction de p vers la source s
+//         Vector p_to_s = Vector(p, s);
+
+//         // visibilite entre p et s
+//         float v = 1;
+
+//         //rayon de p vers s
+//         Ray shadow_ray(p + 0.0001f * pn, p_to_s); //+ 0.001f * pn
+//         shadow_ray.tmax = 1 - .0001f;             //
+
+//         //if(bvh.visible(shadow_ray) != 1)
+//         if (Hit hit2 = bvh.intersect(shadow_ray))
+//         {
+//             // on vient de trouver un triangle entre p et s. p est donc a l'ombre
+//             v = 0;
+//         }
+
+//         Vector sn = sources(si).n; // normale du triangle au point de la source  interpolee ?
+
+//         // accumuler la couleur de l'echantillon
+//         float cos_theta = std::max(0.f, dot(pn, normalize(p_to_s)));
+//         float cos_theta_s = std::max(0.f, dot(sn, normalize(-p_to_s)));
+//         //
+//         // random source
+//         //
+//         color = color + emission_si * material.diffuse * cos_theta_s * cos_theta * sources.area * v * 1.f / (length2(p_to_s) * N_point_Source * N_Source * sources(si).pdf(s));
+
+//         //
+//         // random source according area
+//         //
+//         //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * sources.area * 1.f / (length2(p_to_s)*N_point_Source );
+//     }
+//     return color;
+// }
+
+// Color color_direct_sources_Area_emission(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Sources sources, BVH bvh, int N_Source, int N_point_Source, Vector pn, Point p)
+// {
+
+//     Color color = Black();
+
+//     for (int ni = 0; ni < N_point_Source; ni++)
+//     {
+//         //
+//         // random source
+//         //
+//         //int si = (int) N_Source* u01(rng);
+
+//         //
+//         // random source according area
+//         //
+//         int si;
+//         int P_si = (int)sources.area * u01(rng); //entre 0 et 20000
+//         if (P_si <= 5000)
+//         {
+//             si = N_Source - 1;
+//         }
+//         else if (P_si <= 10000)
+//         {
+//             si = N_Source - 2;
+//         }
+//         else
+//         {
+//             si = (int)(N_Source - 2) * u01(rng);
+//         }
+
+//         // position et emission de la source de lumiere si
+//         float u1 = u01(rng);
+//         float u2 = u01(rng);
+
+//         //Point s= (Point(sources(si).a) + Point(sources(si).b) + Point(sources(si).c))/3.0;
+//         Point s = sources(si).sample(u1, u2);
+//         Color emission_si = sources(si).emission;
+
+//         // direction de p vers la source s
+//         Vector p_to_s = Vector(p, s);
+
+//         // visibilite entre p et s
+//         float v = 1;
+
+//         //rayon de p vers s
+//         Ray shadow_ray(p + 0.0001f * pn, p_to_s); //+ 0.001f * pn
+//         shadow_ray.tmax = 1 - .0001f;             //
+
+//         //if(bvh.visible(shadow_ray) != 1)
+//         if (Hit hit2 = bvh.intersect(shadow_ray))
+//         {
+//             // on vient de trouver un triangle entre p et s. p est donc a l'ombre
+//             v = 0;
+//         }
+
+//         Vector sn = sources(si).n; // normale du triangle au point de la source  interpolee ?
+
+//         // accumuler la couleur de l'echantillon
+//         float cos_theta = std::max(0.f, dot(pn, normalize(p_to_s)));
+//         float cos_theta_s = std::max(0.f, dot(sn, normalize(-p_to_s)));
+//         //
+//         // random source
+//         //
+//         //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta* sources.area * v * 1.f / (length2(p_to_s)*N_point_Source*N_Source*sources(si).pdf(s) );
+
+//         //
+//         // random source according area
+//         //
+//         color = color + emission_si * material.diffuse * cos_theta_s * cos_theta * v * sources.area * 1.f / (length2(p_to_s) * N_point_Source);
+//     }
+//     return color;
+// }
+
+// Color color_Ultime(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Mesh mesh, Sources sources, BVH bvh, int N_Source, int N_point_Source, Vector pn, Point p)
+// {
+
+//     Color color = Black();
+//     Color I1 = Black();
+//     Color I2 = Black();
+
+//     for (int ni = 0; ni < N_point_Source; ni++)
+//     {
+//         //
+//         // random source
+//         //
+//         //int si = (int) N_Source* u01(rng);
+
+//         //
+//         // random source according area
+//         //
+//         int si;
+//         int P_si = (int)sources.area * u01(rng); //entre 0 et 20000
+//         if (P_si <= 5000)
+//         {
+//             si = N_Source - 1;
+//         }
+//         else if (P_si <= 10000)
+//         {
+//             si = N_Source - 2;
+//         }
+//         else
+//         {
+//             si = (int)(N_Source - 2) * u01(rng);
+//         }
+//         float P1y1 = 1 / sources.area;
+//         float P1y2 = 1 / sources.area;
+
+//         //std::cout<<"area"<<sources(si).area<<std::endl;
+//         // position et emission de la source de lumiere si
+//         float u1 = u01(rng);
+//         float u2 = u01(rng);
+
+//         //Point s= (Point(sources(si).a) + Point(sources(si).b) + Point(sources(si).c))/3.0;
+//         Point s = sources(si).sample(u1, u2); ///s = Y1i
+//         Color emission_si = sources(si).emission;
+
+//         //Point p= (Point(data.a) + Point(data.b) + Point(data.c)) / 3;
+//         // interpoler la normale au point d'intersection
+//         //Vector pn= normal(mesh, hit);
+//         // direction de p vers la source s
+//         Vector l = Vector(p, s);
+
+//         // visibilite entre p et s
+//         float vu = 1;
+
+//         Ray shadow_ray(p + 0.0001f * pn, l); //+ 0.001f * pn
+//         shadow_ray.tmax = 1 - .0001f;        //
+
+//         //if(bvh.visible(shadow_ray) != 1)
+//         if (Hit hit2 = bvh.intersect(shadow_ray))
+//         {
+//             // on vient de trouver un triangle entre p et s. p est donc a l'ombre
+//             vu = 0;
+//         }
+
+//         Vector sn = sources(si).n; // normale du triangle au point de la source  interpolee ?
+
+//         // accumuler la couleur de l'echantillon
+//         float cos_theta1 = std::max(0.f, dot(pn, normalize(l)));
+//         float cos_theta_s1 = std::max(0.f, dot(sn, normalize(-l)));
+//         //
+//         // random source
+//         //
+//         //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * 1.f / (length2(l)*N_point_Source*N_Source*sources(si).pdf(s) );
+
+//         //
+//         // random source according area
+//         //
+//         //I1= emission_si*material.diffuse* cos_theta_s1* cos_theta1 * vu * 1.f / (length2(l)*N_point_Source );
+//         I1 = emission_si * material.diffuse * cos_theta_s1 * cos_theta1 * vu * sources.area * 1.f / (length2(l) * N_point_Source);
+
+//         float u12 = u01(rng);
+//         float u22 = u01(rng);
+
+//         // generer une direction (dans un repere local, arbitraire)
+//         Vector v = sample35(u12, u22);
+//         float pdf = pdf35(v);
+
+//         // changement de repere vers la scene
+//         World world(pn);
+//         Vector d = world(v);
+
+//         // evaluer la visibilite
+//         const float scale = 10;
+//         // le vecteur d est de longueur 1, utiliser un vecteur plus grand, en fonction du rayon de la sphere englobante de la scene
+//         // rappel : on veut savoir si le point p voit le ciel... qui est a l'exterieur de la scene.
+
+//         Ray ray2(p + 0.001f * pn, d * scale);
+//         //ray2.tmax = 1 - .0001f ;
+//         Hit hit2 = bvh.intersect(ray2);
+
+//         float P2y1;
+//         float P2y2;
+
+//         if (hit2 == true)
+//         {
+//             // pas de geometrie dans la direction d, p est donc eclaire par le ciel
+
+//             // evaluer les termes de la fonction a integrer
+//             // V(p, d) == 1, puisqu'on a pas trouve d'intersection
+//             float cos_theta2 = std::max(float(0), dot(pn, d));
+
+//             //
+//             // occultation ambiante
+//             //
+//             //color= color + 1 / float(M_PI) * material.diffuse * cos_theta / (pdf*N_point_Source);
+
+//             const Material &material2 = mesh.triangle_material(hit2.triangle_id);
+//             Color emission_si = material2.emission;
+
+//             const TriangleData &triangle2 = mesh.triangle(hit2.triangle_id);
+//             Vector sn = normal(hit2, triangle2);
+//             Point p_sn = point(hit2, ray2); ///p_sn = Y2i
+
+//             float cos_theta_s2 = std::max(0.f, dot(sn, normalize(-d)));
+//             //std::cout<<cos_theta2/float(M_PI)<<"  "<<pdf<<std::endl;
+
+//             P2y2 = pdf * cos_theta_s2 / (length2(p_sn - p));
+//             P2y1 = cos_theta1 * cos_theta_s1 / (float(M_PI) * length2(l));
+//             //
+//             // full calcul
+//             //
+//             //I2= emission_si*material.diffuse* cos_theta_s2* cos_theta2 * 1.f / (length2(p_sn-p)*N_point_Source*pdf );
+//             //I2 = emission_si*material.diffuse* cos_theta2 * 1.f / (N_point_Source*pdf );
+//             I2 = (emission_si * material.diffuse * float(M_PI) * 1.f / (N_point_Source));
+//         }
+
+//         color = color + (P1y1 / (P1y1 + P2y1)) * I1 + (P2y2 / (P1y2 + P2y2)) * I2;
+//     }
+
+//     return color;
+// }
+
+// Color color_Ultime_modified(std::default_random_engine &rng, std::uniform_real_distribution<float> &u01, Material material, Mesh mesh, Sources sources, BVH bvh, int N_Source, int N_point_Source, Vector pn, Point p)
+// {
+
+//     Color color = Black();
+//     Color I1 = Black();
+//     Color I2 = Black();
+
+//     for (int ni = 0; ni < N_point_Source; ni++)
+//     {
+//         //
+//         // random source
+//         //
+//         //int si = (int) N_Source* u01(rng);
+
+//         //
+//         // random source according area
+//         //
+//         int si;
+//         int P_si = (int)sources.area * u01(rng); //entre 0 et 20000
+//         if (P_si <= 5000)
+//         {
+//             si = N_Source - 1;
+//         }
+//         else if (P_si <= 10000)
+//         {
+//             si = N_Source - 2;
+//         }
+//         else
+//         {
+//             si = (int)(N_Source - 2) * u01(rng);
+//         }
+//         float P1y1 = 1 / sources.area;
+//         float P1y2 = 1 / sources.area;
+
+//         //std::cout<<"area"<<sources(si).area<<std::endl;
+//         // position et emission de la source de lumiere si
+//         float u1 = u01(rng);
+//         float u2 = u01(rng);
+
+//         //Point s= (Point(sources(si).a) + Point(sources(si).b) + Point(sources(si).c))/3.0;
+//         Point s = sources(si).sample(u1, u2); ///s = Y1i
+//         Color emission_si = sources(si).emission;
+
+//         //Point p= (Point(data.a) + Point(data.b) + Point(data.c)) / 3;
+//         // interpoler la normale au point d'intersection
+//         //Vector pn= normal(mesh, hit);
+//         // direction de p vers la source s
+//         Vector l = Vector(p, s);
+
+//         // visibilite entre p et s
+//         float vu = 1;
+
+//         Ray shadow_ray(p + 0.0001f * pn, l); //+ 0.001f * pn
+//         shadow_ray.tmax = 1 - .0001f;        //
+
+//         //if(bvh.visible(shadow_ray) != 1)
+//         if (Hit hit2 = bvh.intersect(shadow_ray))
+//         {
+//             // on vient de trouver un triangle entre p et s. p est donc a l'ombre
+//             vu = 0;
+//         }
+
+//         Vector sn = sources(si).n; // normale du triangle au point de la source  interpolee ?
+
+//         // accumuler la couleur de l'echantillon
+//         float cos_theta1 = std::max(0.f, dot(pn, normalize(l)));
+//         float cos_theta_s1 = std::max(0.f, dot(sn, normalize(-l)));
+//         //
+//         // random source
+//         //
+//         //color= color +  emission_si*material.diffuse* cos_theta_s* cos_theta * v * 1.f / (length2(l)*N_point_Source*N_Source*sources(si).pdf(s) );
+
+//         //
+//         // random source according area
+//         //
+//         //I1= emission_si*material.diffuse* cos_theta_s1* cos_theta1 * vu * 1.f / (length2(l)*N_point_Source );
+//         I1 = emission_si * material.diffuse * cos_theta_s1 * cos_theta1 * vu * sources.area * 1.f / (length2(l) * N_point_Source);
+
+//         float u12 = u01(rng);
+//         float u22 = u01(rng);
+
+//         // generer une direction (dans un repere local, arbitraire)
+//         Vector v = sample35(u12, u22);
+//         float pdf = pdf35(v);
+
+//         // changement de repere vers la scene
+//         World world(pn);
+//         Vector d = world(v);
+
+//         // evaluer la visibilite
+//         const float scale = 10;
+//         // le vecteur d est de longueur 1, utiliser un vecteur plus grand, en fonction du rayon de la sphere englobante de la scene
+//         // rappel : on veut savoir si le point p voit le ciel... qui est a l'exterieur de la scene.
+
+//         Ray ray2(p + 0.001f * pn, d * scale);
+//         //ray2.tmax = 1 - .0001f ;
+//         Hit hit2 = bvh.intersect(ray2);
+
+//         float P2y1;
+//         float P2y2;
+
+//         if (hit2 == true)
+//         {
+//             // pas de geometrie dans la direction d, p est donc eclaire par le ciel
+
+//             // evaluer les termes de la fonction a integrer
+//             // V(p, d) == 1, puisqu'on a pas trouve d'intersection
+//             float cos_theta2 = std::max(float(0), dot(pn, d));
+
+//             //
+//             // occultation ambiante
+//             //
+//             //color= color + 1 / float(M_PI) * material.diffuse * cos_theta / (pdf*N_point_Source);
+
+//             const Material &material2 = mesh.triangle_material(hit2.triangle_id);
+//             Color emission_si = material2.emission;
+
+//             const TriangleData &triangle2 = mesh.triangle(hit2.triangle_id);
+//             Vector sn = normal(hit2, triangle2);
+//             Point p_sn = point(hit2, ray2); ///p_sn = Y2i
+
+//             float cos_theta_s2 = std::max(0.f, dot(sn, normalize(-d)));
+//             //std::cout<<cos_theta2/float(M_PI)<<"  "<<pdf<<std::endl;
+
+//             P2y2 = pdf * cos_theta_s2 / (length2(p_sn - p));
+//             P2y1 = cos_theta1 * cos_theta_s1 / (float(M_PI) * length2(l));
+//             //
+//             // full calcul
+//             //
+//             //I2= emission_si*material.diffuse* cos_theta_s2* cos_theta2 * 1.f / (length2(p_sn-p)*N_point_Source*pdf );
+//             //I2 = emission_si*material.diffuse* cos_theta2 * 1.f / (N_point_Source*pdf );
+//             I2 = (emission_si * material.diffuse * 1.f / (N_point_Source));
+//         }
+
+//         color = color + (P1y1 / (P1y1 + P2y1)) * I1 + (P2y2 / (P1y2 + P2y2)) * I2;
+//     }
+
+//     return color;
+// }
 
 int main(const int argc, const char **argv)
 {
-    //const char *mesh_filename= "data/cornell.obj";
-    const char *mesh_filename = "data/emission.obj";
-    //const char *orbiter_filename= "data/cornell_orbiter.txt";
-    const char *orbiter_filename = "data/emission_orbiter.txt";
+    const char *mesh_filename= "data/cornell.obj";
+    //const char *mesh_filename = "data/emission.obj";
+    const char *orbiter_filename= "data/cornell_orbiter.txt";
+    //const char *orbiter_filename = "data/emission_orbiter.txt";
     //const char *orbiter_filename= "data/orbiter.txt";
     //const char *orbiter_filename= "orbiter.txt";
 
@@ -1051,14 +1371,46 @@ int main(const int argc, const char **argv)
     // creer l'image resultat
     Image image(1024, 640);
 
+    std::cout<<"1"<<std::endl;
     // charger un objet
     Mesh mesh = read_mesh(mesh_filename);
+    std::cout<<"2"<<std::endl;
     if (mesh.triangle_count() == 0)
         // erreur de chargement, pas de triangles
         return 1;
-
+    std::cout<<"22"<<std::endl;
     // creer l'ensemble de triangles / structure acceleratrice
-    BVH bvh(mesh);
+    //BVH bvh(mesh);
+
+/////
+
+    BBox bounds;
+    mesh.bounds(bounds.pmin, bounds.pmax);
+    
+    // recupere les triangles
+    std::vector<Triangle> triangles;
+    {
+        int n= mesh.triangle_count();
+        std::cout<<"n : "<<n<<std::endl;
+        for(int i= 0; i < n; i++)
+            triangles.emplace_back(mesh.triangle(i), i);
+    }
+    std::cout<<"3"<<std::endl;
+    BVH bvh;
+    
+    {
+        auto start= std::chrono::high_resolution_clock::now();
+        // construction 
+        bvh.build(bounds, triangles);
+        
+        auto stop= std::chrono::high_resolution_clock::now();
+        int cpu= std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
+        printf("build %dms\n", cpu);
+    }
+
+    std::cout<<""<<std::endl;
+
+//////
     Sources sources(mesh);
     int N_Source = sources.size();
     std::cout << sources.area << std::endl;
@@ -1068,7 +1420,10 @@ int main(const int argc, const char **argv)
     Orbiter camera;
     if (camera.read_orbiter(orbiter_filename))
         // erreur, pas de camera
+        //std::cout<<"avant return : "<<std::endl;
+    
         return 1;
+    //std::cout<<"avant return : "<<std::endl;
 
     // recupere les transformations view, projection et viewport pour generer les rayons
     Transform model = Identity();
@@ -1104,20 +1459,27 @@ int main(const int argc, const char **argv)
             Point o = {camera.position()};                                        // origine dans l'image
             Point e = {(viewport * projection * view).inverse()(Point(x, y, 1))}; // extremite dans l'image
 
-            Ray ray(o, e);
-            Hit hit;
+            RayHit rayhit(o,e);
+            //Ray ray(o, e);
+            //Hit hit;
+            bvh.intersect(rayhit);
             // calculer les intersections
-            if (hit = bvh.intersect(ray))
+            // if (hit = bvh.intersect(rayhit))
+            // {
+            if (rayhit)
             {
-                const TriangleData &triangle = mesh.triangle(hit.triangle_id);      // recuperer le triangle
-                const Material &material = mesh.triangle_material(hit.triangle_id); // et sa matiere
+                const TriangleData &triangle = mesh.triangle(rayhit.triangle_id);      // recuperer le triangle
+                const Material &material = mesh.triangle_material(rayhit.triangle_id); // et sa matiere
 
                 // position du point d'intersection
                 //Point p= ray.o + hit.t * ray.d;
-                Point p = point(hit, ray);         // point d'intersection
-                Vector pn = normal(hit, triangle); // normale interpolee du triangle au point d'intersection
+                Point p = rayhit.o + rayhit.t*rayhit.d;//tdpoint(hit, ray);         // point d'intersection
+                Vector pn = normal(rayhit, triangle); // normale interpolee du triangle au point d'intersection
+
+
+                
                 // retourne la normale pour faire face a la camera / origine du rayon...
-                if (dot(pn, ray.d) > 0)
+                if (dot(pn, rayhit.d) > 0)
                     pn = -pn;
 
                 Color emission = material.emission;

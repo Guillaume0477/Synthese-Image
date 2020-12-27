@@ -753,7 +753,7 @@ Color color_ambiant_direction(std::default_random_engine &rng, std::uniform_real
         // le vecteur d est de longueur 1, utiliser un vecteur plus grand, en fonction du rayon de la sphere englobante de la scene
         // rappel : on veut savoir si le point p voit le ciel... qui est a l'exterieur de la scene.
 
-        RayHit ray2(p + 0.001f * pn, d * scale - (p + 0.001f * pn));
+        RayHit ray2(p + 0.001f * pn, d * scale + (p + 0.000f * pn));
         //ray2.tmax = 1 - .0001f ;
         //Hit hit2 = bvh.intersect(ray2);
 
@@ -1477,7 +1477,7 @@ int main(const int argc, const char **argv)
                 Vector pn = normal(rayhit, triangle); // normale interpolee du triangle au point d'intersection
 
 
-                
+
                 // retourne la normale pour faire face a la camera / origine du rayon...
                 if (dot(pn, rayhit.d) > 0)
                     pn = -pn;
@@ -1494,7 +1494,7 @@ int main(const int argc, const char **argv)
                 //color = color_Ultime(rng, u01, material, mesh, sources, bvh, N_Source, N_point_Source, pn, p);
                 //color = color_Ultime_modified(rng, u01, material, mesh, sources, bvh, N_Source, N_point_Source, pn, p);
 
-                color = color_ambiant_direction(rng, u01, material, mesh, bvh, N_point_Source, pn, p);
+                color = color_ambiant_direction(rng, u01, material, mesh, bvh, N_point_Source, pn, p);//Color(rayhit.t,rayhit.t,rayhit.t,1);//
                 //color = color_direct_direction( rng, u01, material, mesh, bvh, N_point_Source,pn, p);
                 //color_direct = color_direct_sources_cornell( rng, u01, material, sources, bvh, N_Source, N_point_Source_direct,pn, p);
                 //color_indirect = color_indirect_direction(rng, u01, material, mesh,sources, bvh, N_point_Source, N_Source, pn, p);

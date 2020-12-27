@@ -16,6 +16,7 @@
 #include "uniforms.h"
 
 #include "orbiter.h"
+#include <random>
 
 
 // cf tuto_storage
@@ -124,7 +125,31 @@ struct RT : public AppTime
         // pas la peine de construire les mipmaps, le shader ne va ecrire que le mipmap 0
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
         // oui, c'est une texture tout a fait normale.
+
+
+
+
+        int wh = window_height()*window_width();
+        std::random_device seed_generator;
+        std::vector<unsigned int> seeds(wh);
+        for (int i = 0; i< wh; i++ ){
+            seeds[i] = seed_generator();
+        }
+
+
+
+        // texture / image resultat
+        // cree la texture, 4 canaux, entiers 8bits normalises, standard
+        glGenTextures(1, &m_seed_image);
+        glBindTexture(GL_TEXTURE_2D, m_seed_image);
+        glTexImage2D(GL_TEXTURE_2D, 0,
+            GL_R32UI, window_width(), window_height(), 0,
+            GL_RED_INTEGER, GL_UNSIGNED_INT, seeds.data());
         
+        // pas la peine de construire les mipmaps, le shader ne va ecrire que le mipmap 0
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+        // oui, c'est une texture tout a fait normale.
+
         // pour afficher l'image resultat, 2 solutions : 
         //      1. utiliser un shader qui copie un pixel de la texture vers un pixel du framebuffer par defaut / la fenetre, 
         //      2. ou copier directement la texture sur le framebuffer par defaut / la fenetre, en utilisant glBlitFramebuffer
@@ -209,6 +234,10 @@ struct RT : public AppTime
         glBindImageTexture(0, m_texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
         // configurer le shader
         program_uniform(m_program, "image", 0);
+
+        glBindImageTexture(1, m_seed_image, 0, GL_FALSE, 0, GL_READ_ONLY, GL_R32UI);
+        // configurer le shader
+        program_uniform(m_program, "seeds", 1);
         
         // uniforms
         program_uniform(m_program, "invMatrix", T.inverse());
@@ -250,6 +279,7 @@ protected:
     GLuint m_blit_framebuffer;
     GLuint m_program;
     GLuint m_texture;
+    GLuint m_seed_image;
     GLuint m_buffer;
 
     int frame;

@@ -117,6 +117,8 @@ uniform int frame;
 
 // image resultat
 layout(binding= 0, rgba8)  coherent uniform image2D image;
+layout(binding= 1, r32ui)  coherent uniform uimage2D seeds;
+
 
 // 8x8 threads
 layout( local_size_x= 8, local_size_y= 8 ) in;
@@ -155,13 +157,16 @@ void main( )
 
     int N_ray = 8;
     vec4 ambient = vec4(0.0);
-    uint state = 0;
+    //uint state = 0;
 
+    uint state = imageLoad(seeds, ivec2(gl_GlobalInvocationID.xy)).x;
+
+    
     for (int ni = 0; ni<N_ray; ni++){
 
 
-        state++;
-        uint k = uint(frame*N_ray+ni);
+ 
+        uint k = uint(frame*N_ray+state);
 
         //vec3 d_l = normalize(vec3(0.0,0.0,1.98)-p);///
         //vec3 d_l = vec3(0.0,1.0,0.0);

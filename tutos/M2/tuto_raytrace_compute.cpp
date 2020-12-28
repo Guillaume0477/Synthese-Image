@@ -20,15 +20,38 @@
 
 
 // cf tuto_storage
+
 namespace glsl 
 {
+    // type de base alignes sur 4 octets
+    template < typename T >
+    struct alignas(4) gscalar
+    { 
+        alignas(4) T x;
+        
+        gscalar( ) : x(T()) {}
+        gscalar( const T& v ) : x(v) {}
+        gscalar& operator= ( const T& v ) { x= v; return *this; }
+        operator T ( ) { return x; }
+    };
+
+    typedef gscalar<float> gfloat;
+    typedef gscalar<int> gint;
+    typedef gscalar<unsigned int> guint;
+    typedef gscalar<bool> gbool;
+    
+    // vec2, alignes sur 2 * alignement type de base du vecteur
     template < typename T >
     struct alignas(8) gvec2
     {
         alignas(4) T x, y;
         
         gvec2( ) {}
-        gvec2( const vec2& v ) : x(v.x), y(v.y) {}
+        gvec2( const gvec2<T>& v ) : x(v.x), y(v.y) {}
+        gvec2( const ::vec2& v ) : x(v.x), y(v.y) {}
+        gvec2& operator= ( const gvec2<T>& v ) { x= v.x; y= v.y; return *this; }
+        gvec2& operator= ( const ::vec2& v ) { x= v.x; y= v.y; return *this; }
+        operator ::vec2 ( ) { return ::vec2(float(x), float(y)); }
     };
     
     typedef gvec2<float> vec2;
@@ -36,15 +59,22 @@ namespace glsl
     typedef gvec2<unsigned int> uvec2;
     typedef gvec2<int> bvec2;
     
+    // vec3, alignes sur 4 * alignement type de base du vecteur
     template < typename T >
     struct alignas(16) gvec3
     {
         alignas(4) T x, y, z;
         
         gvec3( ) {}
-        gvec3( const vec3& v ) : x(v.x), y(v.y), z(v.z) {}
+        gvec3( const gvec3<T>& v ) : x(v.x), y(v.y), z(v.z) {}
+        gvec3( const ::vec3& v ) : x(v.x), y(v.y), z(v.z) {}
         gvec3( const Point& v ) : x(v.x), y(v.y), z(v.z) {}
         gvec3( const Vector& v ) : x(v.x), y(v.y), z(v.z) {}
+        gvec3& operator= ( const gvec3<T>& v ) { x= v.x; y= v.y; z= v.z; return *this; }
+        gvec3& operator= ( const ::vec3& v ) { x= v.x; y= v.y; z= v.z; return *this; }
+        gvec3& operator= ( const Point& v ) { x= v.x; y= v.y; z= v.z; return *this; }
+        gvec3& operator= ( const Vector& v ) { x= v.x; y= v.y; z= v.z; return *this; }
+        operator ::vec3 ( ) { return ::vec3(float(x), float(y), float(y)); }
     };
     
     typedef gvec3<float> vec3;
@@ -52,13 +82,19 @@ namespace glsl
     typedef gvec3<unsigned int> uvec3;
     typedef gvec3<int> bvec3;
     
+    // vec4, alignes sur 4 * alignement type de base du vecteur
     template < typename T >
     struct alignas(16) gvec4
     {
         alignas(4) T x, y, z, w;
         
         gvec4( ) {}
-        gvec4( const vec4& v ) : x(v.x), y(v.y), z(v.z), w(v.w) {}
+        gvec4( const gvec4<T>& v ) : x(v.x), y(v.y), z(v.z), w(v.w) {}
+        gvec4( const ::vec4& v ) : x(v.x), y(v.y), z(v.z), w(v.w) {}
+        gvec4& operator= ( const gvec4<T>& v ) { x(v.x), y(v.y), z(v.z), w(v.w) ; return *this; }
+        gvec4& operator= ( const ::vec4& v ) { x(v.x), y(v.y), z(v.z), w(v.w) ; return *this; }
+        gvec4& operator= ( const Color& c ) { x= c.r; y= c.g; z= c.b; w= c.a; return *this; }
+        operator ::vec4 ( ) { return ::vec4(float(x), float(y), float(y), float(w)); }
     };
     
     typedef gvec4<float> vec4;
@@ -66,6 +102,93 @@ namespace glsl
     typedef gvec4<unsigned int> uvec4;
     typedef gvec4<int> bvec4;
 }
+
+struct triangle 
+{
+    vec3 a;
+    int pada;
+    vec3 ab;
+    int padb;
+    vec3 ac;
+    int id;
+    // int pad1;
+    // int pad2;
+    // int pad3;
+};
+
+// struct BBox
+// {
+//     glsl::vec3 pmin;
+//     glsl::vec3 pmax;
+// };
+
+// struct Node
+// {
+//     BBox bounds;
+//     int left;
+//     int right;
+// };
+
+// int build( const BBox& _bounds, const std::vector<Triangle>& _triangles )
+// {
+//     triangles= _triangles;  // copie les triangles pour les trier
+//     nodes.clear();          // efface les noeuds
+//     nodes.reserve(triangles.size());
+    
+//     // construit l'arbre... 
+//     root= build(_bounds, 0, triangles.size());
+//     // et renvoie la racine
+//     return root;
+// }
+
+// int build( const BBox& bounds, const int begin, const int end )
+// {
+//     if(end - begin < 2)
+//     {
+//         // inserer une feuille et renvoyer son indice
+//         int index= nodes.size();
+//         nodes.push_back(make_leaf(bounds, begin, end));
+//         return index;
+//     }
+    
+//     // axe le plus etire de l'englobant
+//     Vector d= Vector(bounds.pmin, bounds.pmax);
+//     int axis;
+//     if(d.x > d.y && d.x > d.z)  // x plus grand que y et z ?
+//         axis= 0;
+//     else if(d.y > d.z)          // y plus grand que z ? (et que x implicitement)
+//         axis= 1;
+//     else                        // x et y ne sont pas les plus grands...
+//         axis= 2;
+
+//     // coupe l'englobant au milieu
+//     float cut= bounds.centroid(axis);
+    
+//     // repartit les triangles 
+//     Triangle *pm= std::partition(triangles.data() + begin, triangles.data() + end, triangle_less1(axis, cut));
+//     int m= std::distance(triangles.data(), pm);
+    
+//     // la repartition des triangles peut echouer, et tous les triangles sont dans la meme partie... 
+//     // forcer quand meme un decoupage en 2 ensembles 
+//     if(m == begin || m == end)
+//         m= (begin + end) / 2;
+//     assert(m != begin);
+//     assert(m != end);
+    
+//     // construire le fils gauche
+//     // les triangles se trouvent dans [begin .. m)
+//     BBox bounds_left= triangle_bounds(begin, m);
+//     int left= build(bounds_left, begin, m);
+    
+//     // on recommence pour le fils droit
+//     // les triangles se trouvent dans [m .. end)
+//     BBox bounds_right= triangle_bounds(m, end);
+//     int right= build(bounds_right, m, end);
+    
+//     int index= nodes.size();
+//     nodes.push_back(make_node(bounds, left, right));
+//     return index;
+// }
 
 
 struct RT : public AppTime
@@ -94,20 +217,26 @@ struct RT : public AppTime
         
         // recupere les triangles du mesh
         // structure declaree par le shader, en respectant l'alignement std430
-        struct triangle 
-        {
-            glsl::vec3 a;
-            glsl::vec3 ab;
-            glsl::vec3 ac;
-        };
+
+
+
         
         std::vector<triangle> data;
         data.reserve(m_mesh.triangle_count());
         for(int i= 0; i < m_mesh.triangle_count(); i++)
         {
             TriangleData t= m_mesh.triangle(i);
-            data.push_back( { Point(t.a), Point(t.b) - Point(t.a), Point(t.c) - Point(t.a) } );
+            data.push_back( { Point(t.a),1, Point(t.b) - Point(t.a),1, Point(t.c) - Point(t.a),i } );
         }
+
+
+        // std::vector<Node> nodes;
+        // data.reserve(m_mesh.triangle_count());
+        // for(int i= 0; i < m_mesh.triangle_count(); i++)
+        // {
+        //     TriangleData t= m_mesh.triangle(i);
+        //     data.push_back( { Point(t.a), Point(t.b) - Point(t.a), Point(t.c) - Point(t.a) } );
+        // }
         
         // cree et initialise le storage buffer
         glGenBuffers(1, &m_buffer);

@@ -8,6 +8,7 @@ struct Triangle
     vec3 a;		// sommet
     vec3 ab;	// arete 1
     vec3 ac;	// arete 2
+    int id;
 };
 
 vec3 global( const in vec3 n) { 

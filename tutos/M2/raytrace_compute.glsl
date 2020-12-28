@@ -11,6 +11,23 @@ struct Triangle
     int id;
 };
 
+struct BBox
+{
+    vec3 pmin;
+    int paspmin;
+    vec3 pmax;
+    int paspmax;
+};
+
+struct Node
+{
+    BBox bounds;
+    int left;
+    int right;
+    int padleft;
+    int padright;
+};
+
 vec3 global( const in vec3 n) { 
     
     float sign= n.z < 0 ? -1.0f : 1.0f;
@@ -19,7 +36,7 @@ vec3 global( const in vec3 n) {
     vec3 t= vec3(1.0f + sign * n.x * n.x * a, sign * d, -sign * n.x);
     vec3 b= vec3(d, sign + n.y * n.y * a, -n.y);
     return  vec3(n.x * t + n.y * b + n.z * n); 
-}
+};
 
 /*
 struct World
@@ -86,6 +103,11 @@ float pdf35(const vec3 w)
 layout(std430, binding= 0) readonly buffer triangleData
 {
     Triangle triangles[];
+};
+
+layout(std430, binding= 1) readonly buffer nodeData
+{
+    Node nodes[];
 };
 
 

@@ -103,92 +103,507 @@ namespace glsl
     typedef gvec4<int> bvec4;
 }
 
-struct triangle 
+// struct Triangle 
+// {
+//     vec3 a;
+//     int pada;
+//     vec3 ab;
+//     int padb;
+//     vec3 ac;
+//     int id;
+//     // int pad1;
+//     // int pad2;
+//     // int pad3;
+// };
+
+
+
+struct Ray
 {
-    vec3 a;
-    int pada;
-    vec3 ab;
-    int padb;
-    vec3 ac;
-    int id;
-    // int pad1;
-    // int pad2;
-    // int pad3;
+    Point o;
+    float pad;
+    Vector d;
+    float tmax;
+
+    Ray() : o(), d(), tmax(0) {}
+    Ray(const Point &_o, const Point &_e) : o(_o), d(Vector(_o, _e)), tmax(1) {}
+    Ray(const Point &_o, const Vector &_d) : o(_o), d(_d), tmax(FLT_MAX) {}
 };
 
-// struct BBox
-// {
-//     glsl::vec3 pmin;
-//     glsl::vec3 pmax;
-// };
+// intersection rayon / triangle.
+struct Hit
+{
+    int triangle_id;
+    float t;
+    float u, v;
 
-// struct Node
-// {
-//     BBox bounds;
-//     int left;
-//     int right;
-// };
+    Hit() : triangle_id(-1), t(0), u(0), v(0) {} // pas d'intersection
+    Hit(const int _id, const float _t, const float _u, const float _v) : triangle_id(_id), t(_t), u(_u), v(_v) {}
 
-// int build( const BBox& _bounds, const std::vector<Triangle>& _triangles )
-// {
-//     triangles= _triangles;  // copie les triangles pour les trier
-//     nodes.clear();          // efface les noeuds
-//     nodes.reserve(triangles.size());
-    
-//     // construit l'arbre... 
-//     root= build(_bounds, 0, triangles.size());
-//     // et renvoie la racine
-//     return root;
-// }
+    operator bool() const { return (triangle_id != -1); } // renvoie vrai si l'intersection est initialisee...
+};
 
-// int build( const BBox& bounds, const int begin, const int end )
-// {
-//     if(end - begin < 2)
-//     {
-//         // inserer une feuille et renvoyer son indice
-//         int index= nodes.size();
-//         nodes.push_back(make_leaf(bounds, begin, end));
-//         return index;
-//     }
-    
-//     // axe le plus etire de l'englobant
-//     Vector d= Vector(bounds.pmin, bounds.pmax);
-//     int axis;
-//     if(d.x > d.y && d.x > d.z)  // x plus grand que y et z ?
-//         axis= 0;
-//     else if(d.y > d.z)          // y plus grand que z ? (et que x implicitement)
-//         axis= 1;
-//     else                        // x et y ne sont pas les plus grands...
-//         axis= 2;
 
-//     // coupe l'englobant au milieu
-//     float cut= bounds.centroid(axis);
+ struct RayHit
+ {
+     Point o;            // origine
+     float t;            // p(t)= o + td, position du point d'intersection sur le rayon
+     Vector d;           // direction
+     int triangle_id;    // indice du triangle dans le mesh
+     float u, v;
+     int x, y;
+     
+     RayHit( const Point& _o, const Point& _e ) :  o(_o), t(1), d(Vector(_o, _e)), triangle_id(-1), u(), v(), x(), y() {}
+     RayHit( const Point& _o, const Point& _e, const int _x, const int _y ) :  o(_o), t(1), d(Vector(_o, _e)), triangle_id(-1), u(), v(), x(_x), y(_y) {}
+     operator bool ( ) { return (triangle_id != -1); }
+ };
+  
+  
+ struct BBoxHit
+ {
+     float tmin, tmax;
+     
+     BBoxHit() : tmin(FLT_MAX), tmax(-FLT_MAX) {}
+     BBoxHit( const float _tmin, const float _tmax ) : tmin(_tmin), tmax(_tmax) {}
+     float centroid( ) const { return (tmin + tmax) / 2; }
+     operator bool( ) const { return tmin <= tmax; }
+ };
+  
+
+
+// renvoie la normale interpolee d'un triangle.
+Vector normal(const Hit &hit, const TriangleData &triangle)
+{
+    return normalize((1 - hit.u - hit.v) * Vector(triangle.na) + hit.u * Vector(triangle.nb) + hit.v * Vector(triangle.nc));
+}
+
+// renvoie la normale interpolee d'un triangle.
+Vector normal(const RayHit &hit, const TriangleData &triangle)
+{
+    return normalize((1 - hit.u - hit.v) * Vector(triangle.na) + hit.u * Vector(triangle.nb) + hit.v * Vector(triangle.nc));
+}
+
+// renvoie le point d'intersection sur le triangle.
+Point point(const Hit &hit, const TriangleData &triangle)
+{
+    return (1 - hit.u - hit.v) * Point(triangle.a) + hit.u * Point(triangle.b) + hit.v * Point(triangle.c);
+}
+
+// renvoie le point d'intersection sur le rayon
+Point point(const Hit &hit, const Ray &ray)
+{
+    return ray.o + hit.t * ray.d;
+}
+
+
+
+struct BBox
+ {
+     Point pmin;
+     int paspmin;
+     Point pmax;
+     int paspmax;
+     
+     BBox( ) : pmin(),paspmin(), pmax(),paspmax(){}
+     
+     BBox( const vec3& p ) : pmin(p),paspmin(1), pmax(p),paspmax(1) {}
+     BBox( const BBox& box ) : pmin(box.pmin),paspmin(1), pmax(box.pmax),paspmax(1) {}
+     
+     BBox& insert( const Point& p ) { pmin= min(pmin, p); pmax= max(pmax, p); return *this; }
+     BBox& insert( const BBox& box ) { pmin= min(pmin, box.pmin); pmax= max(pmax, box.pmax); return *this; }
+     
+     float centroid( const int axis ) const { return (pmin(axis) + pmax(axis)) / 2; }
+     
+     BBoxHit intersect( const RayHit& ray ) const
+     {
+         Vector invd= Vector(1 / ray.d.x, 1 / ray.d.y, 1 / ray.d.z);
+         return intersect(ray, invd);
+     }
+     
+     BBoxHit intersect( const RayHit& ray, const Vector& invd ) const
+     {
+         Point rmin= pmin;
+         Point rmax= pmax;
+         if(ray.d.x < 0) std::swap(rmin.x, rmax.x);
+         if(ray.d.y < 0) std::swap(rmin.y, rmax.y);
+         if(ray.d.z < 0) std::swap(rmin.z, rmax.z);
+         Vector dmin= (rmin - ray.o) * invd;
+         Vector dmax= (rmax - ray.o) * invd;
+         
+         float tmin= std::max(dmin.z, std::max(dmin.y, std::max(dmin.x, 0.f)));
+         float tmax= std::min(dmax.z, std::min(dmax.y, std::min(dmax.x, ray.t)));
+         return BBoxHit(tmin, tmax);
+     }
+ };
+
+
+
+
+// triangle "intersectable".
+struct Triangle
+{
+    vec3 p;
+    int padp;
+    vec3 e1;
+    int pade1;
+    vec3 e2;
+    int id;
+//     vec3 a;
+//     int pada;
+//     vec3 ab;
+//     int padb;
+//     vec3 ac;
+//     int id;
+
+    Triangle( const TriangleData& data, const int _id ) : p(data.a),padp(1), e1(Vector(data.a, data.b)),pade1(1), e2(Vector(data.a, data.c)), id(_id) {}
+    // Triangle(const Point &_a, const Point &_b, const Point &_c, const int _id) : p(_a), e1(Vector(_a, _b)), e2(Vector(_a, _c)), id(_id) {}
+
+    /* calcule l'intersection ray/triangle
+        cf "fast, minimum storage ray-triangle intersection" 
+        http://www.graphics.cornell.edu/pubs/1997/MT97.pdf
+        
+        renvoie faux s'il n'y a pas d'intersection valide (une intersection peut exister mais peut ne pas se trouver dans l'intervalle [0 htmax] du rayon.)
+        renvoie vrai + les coordonnees barycentriques (u, v) du point d'intersection + sa position le long du rayon (t).
+        convention barycentrique : p(u, v)= (1 - u - v) * a + u * b + v * c
+    */
+    Hit intersect(const Ray &ray, const float htmax) const
+    {
+        Vector pvec = cross(ray.d, e2);
+        float det = dot(e1, pvec);
+
+        float inv_det = 1 / det;
+        Vector tvec(p, ray.o);
+
+        float u = dot(tvec, pvec) * inv_det;
+        if (u < 0 || u > 1)
+            return Hit();
+
+        Vector qvec = cross(tvec, e1);
+        float v = dot(ray.d, qvec) * inv_det;
+        if (v < 0 || u + v > 1)
+            return Hit();
+
+        float t = dot(e2, qvec) * inv_det;
+        if (t > htmax || t < 0)
+            return Hit();
+
+        return Hit(id, t, u, v); // p(u, v)= (1 - u - v) * a + u * b + v * c
+    }
+    void intersect( RayHit &ray ) const
+    {
+        Vector pvec= cross(ray.d, e2);
+        float det= dot(e1, pvec);
+        
+        float inv_det= 1 / det;
+        Vector tvec(p, ray.o);
+        
+        float u= dot(tvec, pvec) * inv_det;
+        if(u < 0 || u > 1) return;
+        
+        Vector qvec= cross(tvec, e1);
+        float v= dot(ray.d, qvec) * inv_det;
+        if(v < 0 || u + v > 1) return;
+        
+        float t= dot(e2, qvec) * inv_det;
+        if(t < 0 || t > ray.t) return;
+        
+        // touche !!
+        ray.t= t;
+        ray.triangle_id= id;
+        ray.u= u;
+        ray.v= v;
+    }
     
-//     // repartit les triangles 
-//     Triangle *pm= std::partition(triangles.data() + begin, triangles.data() + end, triangle_less1(axis, cut));
-//     int m= std::distance(triangles.data(), pm);
+    BBox bounds( ) const 
+    {
+        BBox box(p);
+        return box.insert(Point(p)+Vector(e1)).insert(Point(p)+Vector(e2));
+    }
+};
+
+/*
+// ensemble de triangles.
+// a remplacer par une vraie structure acceleratrice, un bvh, par exemple
+struct BVH
+{
+    std::vector<Triangle> triangles;
+
+    BVH() = default;
+    BVH(const Mesh &mesh) { build(mesh); }
+
+    void build(const Mesh &mesh)
+    {
+        triangles.clear();
+        triangles.reserve(mesh.triangle_count());
+        for (int id = 0; id < mesh.triangle_count(); id++)
+        {
+            TriangleData data = mesh.triangle(id);
+            triangles.push_back(Triangle(data.a, data.b, data.c, id));
+        }
+
+        printf("%d triangles\n", int(triangles.size()));
+        assert(triangles.size());
+    }
+
+    Hit intersect(const Ray &ray) const
+    {
+        Hit hit;
+        float tmax = ray.tmax;
+        for (int id = 0; id < int(triangles.size()); id++)
+            // ne renvoie vrai que si l'intersection existe dans l'intervalle [0 tmax]
+            if (Hit h = triangles[id].intersect(ray, tmax))
+            {
+                hit = h;
+                tmax = h.t;
+            }
+
+        return hit;
+    }
+
+    bool visible(const Ray &ray) const
+    {
+        for (int id = 0; id < int(triangles.size()); id++)
+            if (triangles[id].intersect(ray, ray.tmax))
+                return false;
+
+        return true;
+    }
+};
+*/
+ 
+
+struct Node
+{
+    BBox bounds;
+    int left;
+    int right;
+    int padleft;
+    int padright;
     
-//     // la repartition des triangles peut echouer, et tous les triangles sont dans la meme partie... 
-//     // forcer quand meme un decoupage en 2 ensembles 
-//     if(m == begin || m == end)
-//         m= (begin + end) / 2;
-//     assert(m != begin);
-//     assert(m != end);
+    bool internal( ) const { return right > 0; }                        // renvoie vrai si le noeud est un noeud interne
+    int internal_left( ) const { assert(internal()); return left; }     // renvoie le fils gauche du noeud interne 
+    int internal_right( ) const { assert(internal()); return right; }   // renvoie le fils droit
     
-//     // construire le fils gauche
-//     // les triangles se trouvent dans [begin .. m)
-//     BBox bounds_left= triangle_bounds(begin, m);
-//     int left= build(bounds_left, begin, m);
-    
-//     // on recommence pour le fils droit
-//     // les triangles se trouvent dans [m .. end)
-//     BBox bounds_right= triangle_bounds(m, end);
-//     int right= build(bounds_right, m, end);
-    
-//     int index= nodes.size();
-//     nodes.push_back(make_node(bounds, left, right));
-//     return index;
-// }
+    bool leaf( ) const { return right < 0; }                            // renvoie vrai si le noeud est une feuille
+    int leaf_begin( ) const { assert(leaf()); return -left; }           // renvoie le premier objet de la feuille
+    int leaf_end( ) const { assert(leaf()); return -right; }            // renvoie le dernier objet
+};
+ 
+// creation d'un noeud interne
+Node make_node( const BBox& bounds, const int left, const int right )
+{
+    Node node { bounds, left, right };
+    assert(node.internal());    // verifie que c'est bien un noeud...
+    return node;
+}
+ 
+// creation d'une feuille
+Node make_leaf( const BBox& bounds, const int begin, const int end )
+{
+    Node node { bounds, -begin, -end };
+    assert(node.leaf());        // verifie que c'est bien une feuille...
+    return node;
+}
+
+
+
+ struct triangle_less1
+ {
+     int axis;
+     float cut;
+     
+     triangle_less1( const int _axis, const float _cut ) : axis(_axis), cut(_cut) {}
+     
+     bool operator() ( const Triangle& triangle ) const
+     {
+         // re-construit l'englobant du triangle
+         BBox bounds= triangle.bounds();
+         return bounds.centroid(axis) < cut;
+     }
+ };
+  
+  
+ struct BVH
+ {
+     std::vector<Node> nodes;
+     std::vector<Triangle> triangles;
+     int root;
+     
+     int direct_tests;
+     
+     // construit un bvh pour l'ensemble de triangles
+     int build( const BBox& _bounds, const std::vector<Triangle>& _triangles )
+     {
+         triangles= _triangles;  // copie les triangles pour les trier
+         nodes.clear();          // efface les noeuds
+         nodes.reserve(triangles.size());
+         
+         // construit l'arbre... 
+         root= build(_bounds, 0, triangles.size());
+         // et renvoie la racine
+         return root;
+     }
+     
+     void intersect( RayHit& ray ) const
+     {
+         Vector invd= Vector(1 / ray.d.x, 1 / ray.d.y, 1 / ray.d.z);
+         intersect( ray, invd);
+     }
+     
+     void intersect_fast( RayHit& ray ) const
+     {
+         Vector invd= Vector(1 / ray.d.x, 1 / ray.d.y, 1 / ray.d.z);
+         intersect_fast(root, ray, invd);
+     }
+     
+ protected:
+     // construction d'un noeud
+     int build( const BBox& bounds, const int begin, const int end )
+     {
+         if(end - begin < 2)
+         {
+             // inserer une feuille et renvoyer son indice
+             int index= nodes.size();
+             nodes.push_back(make_leaf(bounds, begin, end));
+             return index;
+         }
+         
+         // axe le plus etire de l'englobant
+         Vector d= Vector(bounds.pmin, bounds.pmax);
+         int axis;
+         if(d.x > d.y && d.x > d.z)  // x plus grand que y et z ?
+             axis= 0;
+         else if(d.y > d.z)          // y plus grand que z ? (et que x implicitement)
+             axis= 1;
+         else                        // x et y ne sont pas les plus grands...
+             axis= 2;
+  
+         // coupe l'englobant au milieu
+         float cut= bounds.centroid(axis);
+         
+         // repartit les triangles 
+         Triangle *pm= std::partition(triangles.data() + begin, triangles.data() + end, triangle_less1(axis, cut));
+         int m= std::distance(triangles.data(), pm);
+         
+         // la repartition des triangles peut echouer, et tous les triangles sont dans la meme partie... 
+         // forcer quand meme un decoupage en 2 ensembles 
+         if(m == begin || m == end)
+             m= (begin + end) / 2;
+         assert(m != begin);
+         assert(m != end);
+         
+         // construire le fils gauche
+         // les triangles se trouvent dans [begin .. m)
+         BBox bounds_left= triangle_bounds(begin, m);
+         int left= build(bounds_left, begin, m);
+         
+         // on recommence pour le fils droit
+         // les triangles se trouvent dans [m .. end)
+         BBox bounds_right= triangle_bounds(m, end);
+         int right= build(bounds_right, m, end);
+         
+         int index= nodes.size();
+         nodes.push_back(make_node(bounds, left, right));
+         return index;
+     }
+     
+     BBox triangle_bounds( const int begin, const int end )
+     {
+         BBox bbox= triangles[begin].bounds();
+         for(int i= begin +1; i < end; i++)
+             bbox.insert(triangles[i].bounds());
+         
+         return bbox;
+     }
+     
+    //  void intersect( const int index, RayHit& ray, const Vector& invd ) const
+    //  {
+    //      const Node& node= nodes[index];
+    //      if(node.bounds.intersect(ray, invd))
+    //      {
+    //          if(node.leaf())
+    //          {
+    //              for(int i= node.leaf_begin(); i < node.leaf_end(); i++)
+    //                  triangles[i].intersect(ray);
+    //          }
+    //          else // if(node.internal())
+    //          {
+    //              intersect(node.internal_left(), ray, invd);
+    //              intersect(node.internal_right(), ray, invd);
+    //          }
+    //      }
+    //  }
+
+    void intersect( RayHit& ray, const Vector& invd ) const
+     {
+
+        int stack[64];
+        int top= 0;
+        
+        // empiler la racine
+        stack[top++]= root;
+        
+        //float tmax= ray.tmax;
+        // tant qu'il y a un noeud dans la pile
+        while(top > 0)
+        {
+            int index= stack[--top];
+            
+            const Node& node= nodes[index];
+            if(node.bounds.intersect(ray, invd))
+            {
+                if(node.leaf())
+                {
+                    for(int i= node.leaf_begin(); i < node.leaf_end(); i++)
+                        triangles[i].intersect(ray);
+                }
+                else // if(node.internal())
+                {
+                    assert(top +1 < 64);       // le noeud est touche, empiler les fils
+                    stack[top++]= node.internal_left();
+                    stack[top++]= node.internal_right();
+                }
+            }
+        }
+     }
+     
+     void intersect_fast( const int index, RayHit& ray, const Vector& invd ) const
+     {
+         const Node& node= nodes[index];
+         if(node.leaf())
+         {
+             for(int i= node.leaf_begin(); i < node.leaf_end(); i++)
+                 triangles[i].intersect(ray);
+         }
+         else // if(node.internal())
+         {
+             const Node& left_node= nodes[node.left];
+             const Node& right_node= nodes[node.right];
+             
+             BBoxHit left= left_node.bounds.intersect(ray, invd);
+             BBoxHit right= right_node.bounds.intersect(ray, invd);
+             if(left && right)                                                   // les 2 fils sont touches par le rayon...
+             {
+                 if(left.centroid() < right.centroid())                          // parcours de gauche a droite
+                 {
+                     intersect_fast(node.internal_left(), ray, invd);
+                     intersect_fast(node.internal_right(), ray, invd);
+                 }
+                 else                                                            // parcours de droite a gauche                                        
+                 {
+                     intersect_fast(node.internal_right(), ray, invd);
+                     intersect_fast(node.internal_left(), ray, invd);
+                 }
+             }
+             else if(left)                                                       // uniquement le fils gauche
+                 intersect_fast(node.internal_left(), ray, invd);
+             else if(right)
+                 intersect_fast(node.internal_right(), ray, invd);               // uniquement le fils droit
+         }
+     }
+ };
+  
+
 
 
 struct RT : public AppTime
@@ -219,14 +634,29 @@ struct RT : public AppTime
         // structure declaree par le shader, en respectant l'alignement std430
 
 
-
+        BBox bounds;
+        m_mesh.bounds(bounds.pmin, bounds.pmax);
         
-        std::vector<triangle> data;
+        
+        std::vector<Triangle> data;
         data.reserve(m_mesh.triangle_count());
         for(int i= 0; i < m_mesh.triangle_count(); i++)
         {
             TriangleData t= m_mesh.triangle(i);
-            data.push_back( { Point(t.a),1, Point(t.b) - Point(t.a),1, Point(t.c) - Point(t.a),i } );
+            //data.push_back( { Point(t.a),1, Point(t.b) - Point(t.a),1, Point(t.c) - Point(t.a), i } );
+            data.emplace_back(t, i);
+        }
+ 
+        BVH bvh;
+        
+        {
+            auto start= std::chrono::high_resolution_clock::now();
+            // construction 
+            bvh.build(bounds, data);
+            
+            auto stop= std::chrono::high_resolution_clock::now();
+            int cpu= std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
+            printf("build %dms\n", cpu);
         }
 
 
@@ -238,11 +668,17 @@ struct RT : public AppTime
         //     data.push_back( { Point(t.a), Point(t.b) - Point(t.a), Point(t.c) - Point(t.a) } );
         // }
         
-        // cree et initialise le storage buffer
-        glGenBuffers(1, &m_buffer);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_buffer);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, data.size() * sizeof(triangle), data.data(), GL_STATIC_READ);
+        // cree et initialise le storage buffer 0
+        glGenBuffers(1, &m_buffer_tri);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_buffer_tri);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, data.size() * sizeof(Triangle), data.data(), GL_STATIC_READ);
         
+        // cree et initialise le storage buffer 1
+        glGenBuffers(1, &m_buffer_node);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_buffer_node);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, bvh.nodes.size() * sizeof(Triangle), bvh.nodes.data(), GL_STATIC_READ);
+        
+
         // texture / image resultat
         // cree la texture, 4 canaux, entiers 8bits normalises, standard
         glGenTextures(1, &m_texture);
@@ -307,7 +743,8 @@ struct RT : public AppTime
     {
         release_program(m_program);
         glDeleteTextures(1, &m_texture);
-        glDeleteBuffers(1, &m_buffer);
+        glDeleteBuffers(1, &m_buffer_tri);
+        glDeleteBuffers(1, &m_buffer_node);
         glDeleteFramebuffers(1, &m_blit_framebuffer);
         return 0;
     }
@@ -357,7 +794,10 @@ struct RT : public AppTime
         glUseProgram(m_program);
         
         // storage buffer 0
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_buffer);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_buffer_tri);
+
+        // storage buffer 1
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, m_buffer_node);
         
         // image texture 0, ecriture seule, mipmap 0 + format rgba8 classique
         glBindImageTexture(0, m_texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
@@ -409,7 +849,8 @@ protected:
     GLuint m_program;
     GLuint m_texture;
     GLuint m_seed_image;
-    GLuint m_buffer;
+    GLuint m_buffer_tri;
+    GLuint m_buffer_node;
 
     int frame;
 };

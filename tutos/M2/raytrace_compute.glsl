@@ -19,6 +19,7 @@ struct BBox
     int paspmax;
 };
 
+
 struct Node
 {
     BBox bounds;
@@ -27,6 +28,15 @@ struct Node
     int padleft;
     int padright;
 };
+
+bool internal( Node node ) { return (node.right > 0); };                        // renvoie vrai si le noeud est un noeud interne
+int internal_left( Node node ) {  return node.left; };     // renvoie le fils gauche du noeud interne 
+int internal_right( Node node ) { return node.right; };   // renvoie le fils droit
+
+bool leaf( Node node ) { return (node.right < 0); };                            // renvoie vrai si le noeud est une feuille
+int leaf_begin( Node node ) { return -node.left; };           // renvoie le premier objet de la feuille
+int leaf_end( Node node ) { return -node.right; };   
+
 
 vec3 global( const in vec3 n) { 
     
@@ -217,7 +227,7 @@ bool intersect( const Triangle triangle, inout RayHit ray, const float tmax)
 
 
 
-// void intersect(const Triangle triangles[], const Node nodes[],  in RayHit ray, const vec3 invd, const float tmax) const
+// void intersect(inout RayHit ray, const vec3 invd, const float tmax)
 //     {
 
 //     int stack[64];
@@ -235,27 +245,27 @@ bool intersect( const Triangle triangle, inout RayHit ray, const float tmax)
 //         const Node node= nodes[index];
 //         if(intersect(node.bounds, ray, invd))
 //         {
-//             if(node.leaf())
+//             if(leaf(node))
 //             {
-//                 for(int i= node.leaf_begin(); i < node.leaf_end(); i++)
+//                 for(int i= leaf_begin(node); i < leaf_end(node); i++)
 //                     intersect(triangles[i],ray,tmax);
 //             }
 //             else // if(node.internal())
 //             {
-//                 assert(top +1 < 64);       // le noeud est touche, empiler les fils
-//                 stack[top++]= node.internal_left();
-//                 stack[top++]= node.internal_right();
+//                 //assert(top +1 < 64);       // le noeud est touche, empiler les fils
+//                 stack[top++]= internal_left(node);
+//                 stack[top++]= internal_right(node);
 //             }
 //         }
 //     }
 // };
 
 
-// void intersect(const Triangle triangles[], const Node nodes[],  RayHit ray , const float tmax) const
+// void intersect( RayHit ray , const float tmax)
 // {
 //     vec3 invd= vec3(1.0f / ray.d.x, 1.0f / ray.d.y, 1.0f / ray.d.z);
-//     intersect(triangles, nodes, ray, invd);
-// }
+//     intersect(ray, invd, tmax);
+// };
 
 
 void test_intersect( inout RayHit rayhit , const float tmax, inout float hit, inout float hitu, inout float hitv, inout int id) 

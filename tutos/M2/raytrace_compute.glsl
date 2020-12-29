@@ -215,6 +215,99 @@ bool intersect( const Triangle triangle, inout RayHit ray, const float tmax)
 
 
 
+
+
+// void intersect(const Triangle triangles[], const Node nodes[],  in RayHit ray, const vec3 invd, const float tmax) const
+//     {
+
+//     int stack[64];
+//     int top= 0;
+    
+//     // empiler la racine
+//     stack[top++]= 64;//root;
+    
+//     //float tmax= ray.tmax;
+//     // tant qu'il y a un noeud dans la pile
+//     while(top > 0)
+//     {
+//         int index= stack[--top];
+        
+//         const Node node= nodes[index];
+//         if(intersect(node.bounds, ray, invd))
+//         {
+//             if(node.leaf())
+//             {
+//                 for(int i= node.leaf_begin(); i < node.leaf_end(); i++)
+//                     intersect(triangles[i],ray,tmax);
+//             }
+//             else // if(node.internal())
+//             {
+//                 assert(top +1 < 64);       // le noeud est touche, empiler les fils
+//                 stack[top++]= node.internal_left();
+//                 stack[top++]= node.internal_right();
+//             }
+//         }
+//     }
+// };
+
+
+// void intersect(const Triangle triangles[], const Node nodes[],  RayHit ray , const float tmax) const
+// {
+//     vec3 invd= vec3(1.0f / ray.d.x, 1.0f / ray.d.y, 1.0f / ray.d.z);
+//     intersect(triangles, nodes, ray, invd);
+// }
+
+
+void test_intersect( inout RayHit rayhit , const float tmax, inout float hit, inout float hitu, inout float hitv, inout int id) 
+{
+    for(int i= 0; i < triangles.length(); i++)
+    {
+        //float t, u, v;    
+        // float t, u, v;  
+        // //int i2;
+        // int i2;
+        // RayHit rayhit = RayHit(o,t,d,i2,u,v);
+        
+        //if(intersect(triangles[i], o, d, hit, t, u, v))
+        if(intersect(triangles[i], rayhit, tmax))
+        //out float rt, out int id, out float ru, out float rv)
+        //if(intersect(triangles[i], o, d, hit, t, i2, u, v, rayhit))
+        {
+            if (hit>rayhit.t){ //zbuffer
+                hit= rayhit.t;
+                hitu=rayhit.u;//1-t;//
+                hitv=rayhit.v; //1-t;//
+                id=rayhit.triangle_id;//rayhit.triangle_id;//triangles[i].id;
+            }
+        }
+    }
+};
+bool test_intersect_bool( inout RayHit rayhit , const float tmax, inout float hit, inout float hitu, inout float hitv, inout int id) 
+{
+    for(int i= 0; i < triangles.length(); i++)
+    {
+        //float t, u, v;    
+        // float t, u, v;  
+        // //int i2;
+        // int i2;
+        // RayHit rayhit = RayHit(o,t,d,i2,u,v);
+        
+        //if(intersect(triangles[i], o, d, hit, t, u, v))
+        if(intersect(triangles[i], rayhit, tmax))
+        //out float rt, out int id, out float ru, out float rv)
+        //if(intersect(triangles[i], o, d, hit, t, i2, u, v, rayhit))
+        {
+            hit= rayhit.t;
+            hitu=rayhit.u;//1-t;//
+            hitv=rayhit.v; //1-t;//
+            id=rayhit.triangle_id;//rayhit.triangle_id;//triangles[i].id;
+            return true;
+        }
+    }
+    return false;
+};
+
+
 uniform mat4 invMatrix;
 uniform int frame;
 
@@ -238,29 +331,33 @@ void main( )
     vec3 o= oh.xyz / oh.w;                              // origine
     vec3 d= eh.xyz / eh.w - oh.xyz / oh.w;              // direction
 
+    float tmax =1.0;
     float hit= 1.0;	// tmax = far, une intersection valide est plus proche que l'extremite du rayon / far...
     float hitu= 0.0;
     float hitv= 0.0;
     int id;
-    for(int i= 0; i < triangles.length(); i++)
-    {
         //float t, u, v;    
-        float t, u, v;  
-        //int i2;
-        int i2;
-        RayHit rayhit = RayHit(o,t,d,i2,u,v);
-        
-        //if(intersect(triangles[i], o, d, hit, t, u, v))
-        if(intersect(triangles[i], rayhit, hit))
-        //out float rt, out int id, out float ru, out float rv)
-        //if(intersect(triangles[i], o, d, hit, t, i2, u, v, rayhit))
-        {
-            hit= rayhit.t;
-            hitu=rayhit.u;//1-t;//
-            hitv=rayhit.v; //1-t;//
-            id=rayhit.triangle_id;//rayhit.triangle_id;//triangles[i].id;
-        }
-    }
+    float t, u, v;  
+    //int i2;
+    int i2;
+    RayHit rayhit = RayHit(o,t,d,i2,u,v);
+    test_intersect( rayhit , tmax, hit, hitu, hitv,id) ;
+
+    
+    // for(int i= 0; i < triangles.length(); i++)
+    // {
+
+    //     //if(intersect(triangles[i], o, d, hit, t, u, v))
+    //     if(intersect(triangles[i], rayhit, hit))
+    //     //out float rt, out int id, out float ru, out float rv)
+    //     //if(intersect(triangles[i], o, d, hit, t, i2, u, v, rayhit))
+    //     {
+    //         hit=rayhit.t;
+    //         hitu=rayhit.u;//1-t;//
+    //         hitv=rayhit.v; //1-t;//
+    //         id=rayhit.triangle_id;//rayhit.triangle_id;//triangles[i].id;
+    //     }
+    // }
     
     float w = 1.0 - hitu - hitv;
     vec3 p = triangles[id].a + hitu*triangles[id].ab + hitv*triangles[id].ac;
@@ -311,24 +408,31 @@ void main( )
         float hitu2= 0.0;
         float hitv2= 0.0;
         int id2;
-        for(int j= 0; j < triangles.length(); j++)
-        {
-            float t2, u2, v2;
-            //int i2;
-            RayHit rayhit2 = RayHit(p+0.01*n_p,t2,d_l,id2,u2,v2);
-            //if(intersect(triangles[j], p+0.01*n_p, d_l, 1000, t2, /*id2,**/ u2, v2))
-            if(intersect(triangles[j], rayhit2, 1000))
-            {
-                // hit2= t2;
-                // hitu2=u2;//1-t;//
-                // hitv2=v2; //1-t;//
-                // id2=j;//rayhit.triangle_id;
-                v = 0;
-                vu_sun = 0;
-                break;
-                
-            }
+        float t2, u22, v2;
+        //int i2;
+        RayHit rayhit2 = RayHit(p+0.01*n_p,t2,d_l,id2,u22,v2);
+
+        if(test_intersect_bool(rayhit2 , 10000, hit2, hitu2, hitv2, id2)==true){
+            v = 0;
+            vu_sun = 0;
         }
+
+        // for(int j= 0; j < triangles.length(); j++)
+        // {
+
+        //     //if(intersect(triangles[j], p+0.01*n_p, d_l, 1000, t2, /*id2,**/ u2, v2))
+        //     if(intersect(triangles[j], rayhit2, 1000))
+        //     {
+        //         // hit2= t2;
+        //         // hitu2=u2;//1-t;//
+        //         // hitv2=v2; //1-t;//
+        //         // id2=j;//rayhit.triangle_id;
+        //         v = 0;
+        //         vu_sun = 0;
+        //         break;
+                
+        //     }
+        // }
 
         if (vu_sun==1){
             //vec4 diffuse = vec4(0,0.140,0.450,0.0911);

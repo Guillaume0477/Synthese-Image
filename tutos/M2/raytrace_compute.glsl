@@ -111,29 +111,109 @@ layout(std430, binding= 1) readonly buffer nodeData
 };
 
 
-bool intersect( const Triangle triangle, const vec3 o, const vec3 d, const float tmax, out float rt, out float ru, out float rv )
+// bool intersect( const Triangle triangle, const vec3 o, const vec3 d, const float tmax, out float rt,/* out int id, */out float ru, out float rv )
+// {
+//     vec3 pvec= cross(d, triangle.ac);
+//     float det= dot(triangle.ab, pvec);
+//     float inv_det= 1.0f / det;
+    
+//     vec3 tvec= o - triangle.a;
+//     float u= dot(tvec, pvec) * inv_det;
+//     vec3 qvec= cross(tvec, triangle.ab);
+//     float v= dot(d, qvec) * inv_det;
+    
+//     /* calculate t, ray intersects triangle */
+//     rt= dot(triangle.ac, qvec) * inv_det;
+//     ru= u;
+//     rv= v;
+//     //id = triangle.id;
+    
+//     // ne renvoie vrai que si l'intersection est valide : 
+//     // interieur du triangle, 0 < u < 1, 0 < v < 1, 0 < u+v < 1
+//     if(any(greaterThan(vec3(u, v, u+v), vec3(1, 1, 1))) || any(lessThan(vec2(u, v), vec2(0, 0))))
+//         return false;
+//     // comprise entre 0 et tmax du rayon
+//     return (rt < tmax && rt > 0);
+// };
+
+struct RayHit
 {
-    vec3 pvec= cross(d, triangle.ac);
+    vec3 o;            // origine
+    float t;            // p(t)= o + td, position du point d'intersection sur le rayon
+    vec3 d;           // direction
+    int triangle_id;    // indice du triangle dans le mesh
+    float u, v;
+
+};
+
+// bool intersect( const Triangle triangle, const vec3 o, const vec3 d, const float tmax, out float rt, out int id, out float ru, out float rv, RayHit ray )
+// {
+//     vec3 pvec= cross(ray.d, triangle.ac);
+//     float det= dot(triangle.ab, pvec);
+//     float inv_det= 1.0f / det;
+    
+//     vec3 tvec= ray.o - triangle.a;
+//     float u= dot(tvec, pvec) * inv_det;
+//     vec3 qvec= cross(tvec, triangle.ab);
+//     float v= dot(d, qvec) * inv_det;
+    
+//     ray.t= dot(triangle.ac, qvec) * inv_det;
+//     ray.triangle_id = triangle.id;
+//     ray.u= u;
+//     ray.v= v;
+
+//     /* calculate t, ray intersects triangle */
+//     // rt= dot(triangle.ac, qvec) * inv_det;
+//     // ru= u;
+//     // rv= v;
+//     // id = triangle.id;
+    
+//     // ne renvoie vrai que si l'intersection est valide : 
+//     // interieur du triangle, 0 < u < 1, 0 < v < 1, 0 < u+v < 1
+//     if(any(greaterThan(vec3(u, v, u+v), vec3(1, 1, 1))) || any(lessThan(vec2(u, v), vec2(0, 0))))
+//         return false;
+//     // comprise entre 0 et tmax du rayon
+//     return (rt < tmax && rt > 0);
+// };
+
+
+
+
+bool intersect( const Triangle triangle, inout RayHit ray, const float tmax)
+{
+    vec3 pvec= cross(ray.d, triangle.ac);
     float det= dot(triangle.ab, pvec);
     float inv_det= 1.0f / det;
     
-    vec3 tvec= o - triangle.a;
+    vec3 tvec= ray.o - triangle.a;
     float u= dot(tvec, pvec) * inv_det;
     vec3 qvec= cross(tvec, triangle.ab);
-    float v= dot(d, qvec) * inv_det;
+    float v= dot(ray.d, qvec) * inv_det;
     
+    ray.t= dot(triangle.ac, qvec) * inv_det;
+    ray.triangle_id = triangle.id;
+    ray.u= u;
+    ray.v= v;
+
     /* calculate t, ray intersects triangle */
-    rt= dot(triangle.ac, qvec) * inv_det;
-    ru= u;
-    rv= v;
+    // rt= dot(triangle.ac, qvec) * inv_det;
+    // ru= u;
+    // rv= v;
+    // id = triangle.id;
+
+
+    //return true;
     
     // ne renvoie vrai que si l'intersection est valide : 
     // interieur du triangle, 0 < u < 1, 0 < v < 1, 0 < u+v < 1
-    if(any(greaterThan(vec3(u, v, u+v), vec3(1, 1, 1))) || any(lessThan(vec2(u, v), vec2(0, 0))))
+    if(any(greaterThan(vec3(u, v, u+v), vec3(1, 1, 1))) || any(lessThan(vec2(u, v), vec2(0, 0)))){
         return false;
+    }
     // comprise entre 0 et tmax du rayon
-    return (rt < tmax && rt > 0);
-}
+    return (ray.t < tmax && ray.t > 0);
+};
+
+
 
 uniform mat4 invMatrix;
 uniform int frame;
@@ -164,13 +244,21 @@ void main( )
     int id;
     for(int i= 0; i < triangles.length(); i++)
     {
-        float t, u, v;
-        if(intersect(triangles[i], o, d, hit, t, u, v))
+        //float t, u, v;    
+        float t, u, v;  
+        //int i2;
+        int i2;
+        RayHit rayhit = RayHit(o,t,d,i2,u,v);
+        
+        //if(intersect(triangles[i], o, d, hit, t, u, v))
+        if(intersect(triangles[i], rayhit, hit))
+        //out float rt, out int id, out float ru, out float rv)
+        //if(intersect(triangles[i], o, d, hit, t, i2, u, v, rayhit))
         {
-            hit= t;
-            hitu=u;//1-t;//
-            hitv=v; //1-t;//
-            id=i;
+            hit= rayhit.t;
+            hitu=rayhit.u;//1-t;//
+            hitv=rayhit.v; //1-t;//
+            id=rayhit.triangle_id;//rayhit.triangle_id;//triangles[i].id;
         }
     }
     
@@ -226,13 +314,15 @@ void main( )
         for(int j= 0; j < triangles.length(); j++)
         {
             float t2, u2, v2;
-            if(intersect(triangles[j], p+0.01*n_p, d_l, 1000, t2, u2, v2))
-            //if(intersect(triangles[j], p, d_l, 1000000, t2, u2, v2))
+            //int i2;
+            RayHit rayhit2 = RayHit(p+0.01*n_p,t2,d_l,id2,u2,v2);
+            //if(intersect(triangles[j], p+0.01*n_p, d_l, 1000, t2, /*id2,**/ u2, v2))
+            if(intersect(triangles[j], rayhit2, 1000))
             {
-                hit2= t2;
-                hitu2=u2;//1-t;//
-                hitv2=v2; //1-t;//
-                id2=j;
+                // hit2= t2;
+                // hitu2=u2;//1-t;//
+                // hitv2=v2; //1-t;//
+                // id2=j;//rayhit.triangle_id;
                 v = 0;
                 vu_sun = 0;
                 break;

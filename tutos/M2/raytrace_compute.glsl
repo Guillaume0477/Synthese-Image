@@ -121,30 +121,6 @@ layout(std430, binding= 1) readonly buffer nodeData
 };
 
 
-// bool intersect( const Triangle triangle, const vec3 o, const vec3 d, const float tmax, out float rt,/* out int id, */out float ru, out float rv )
-// {
-//     vec3 pvec= cross(d, triangle.ac);
-//     float det= dot(triangle.ab, pvec);
-//     float inv_det= 1.0f / det;
-    
-//     vec3 tvec= o - triangle.a;
-//     float u= dot(tvec, pvec) * inv_det;
-//     vec3 qvec= cross(tvec, triangle.ab);
-//     float v= dot(d, qvec) * inv_det;
-    
-//     /* calculate t, ray intersects triangle */
-//     rt= dot(triangle.ac, qvec) * inv_det;
-//     ru= u;
-//     rv= v;
-//     //id = triangle.id;
-    
-//     // ne renvoie vrai que si l'intersection est valide : 
-//     // interieur du triangle, 0 < u < 1, 0 < v < 1, 0 < u+v < 1
-//     if(any(greaterThan(vec3(u, v, u+v), vec3(1, 1, 1))) || any(lessThan(vec2(u, v), vec2(0, 0))))
-//         return false;
-//     // comprise entre 0 et tmax du rayon
-//     return (rt < tmax && rt > 0);
-// };
 
 struct RayHit
 {
@@ -156,35 +132,6 @@ struct RayHit
 
 };
 
-// bool intersect( const Triangle triangle, const vec3 o, const vec3 d, const float tmax, out float rt, out int id, out float ru, out float rv, RayHit ray )
-// {
-//     vec3 pvec= cross(ray.d, triangle.ac);
-//     float det= dot(triangle.ab, pvec);
-//     float inv_det= 1.0f / det;
-    
-//     vec3 tvec= ray.o - triangle.a;
-//     float u= dot(tvec, pvec) * inv_det;
-//     vec3 qvec= cross(tvec, triangle.ab);
-//     float v= dot(d, qvec) * inv_det;
-    
-//     ray.t= dot(triangle.ac, qvec) * inv_det;
-//     ray.triangle_id = triangle.id;
-//     ray.u= u;
-//     ray.v= v;
-
-//     /* calculate t, ray intersects triangle */
-//     // rt= dot(triangle.ac, qvec) * inv_det;
-//     // ru= u;
-//     // rv= v;
-//     // id = triangle.id;
-    
-//     // ne renvoie vrai que si l'intersection est valide : 
-//     // interieur du triangle, 0 < u < 1, 0 < v < 1, 0 < u+v < 1
-//     if(any(greaterThan(vec3(u, v, u+v), vec3(1, 1, 1))) || any(lessThan(vec2(u, v), vec2(0, 0))))
-//         return false;
-//     // comprise entre 0 et tmax du rayon
-//     return (rt < tmax && rt > 0);
-// };
 
 
 bool intersect_new( const Triangle triangle, inout RayHit ray, const float tmax)
@@ -231,84 +178,7 @@ bool intersect_new( const Triangle triangle, inout RayHit ray, const float tmax)
     return (ray.t < tmax && ray.t > 0);
 };
 
-bool intersect( const Triangle triangle, inout RayHit ray, const float tmax)
-{
-    
-    //ray = ray;
-    vec3 pvec= cross(ray.d, triangle.ac);
-    float det= dot(triangle.ab, pvec);
-    float inv_det= 1.0f / det;
-    
-    vec3 tvec= ray.o - triangle.a;
-    float u= dot(tvec, pvec) * inv_det;
-    if(u < 0.0 || u > 1.0) return false;
-    
-    vec3 qvec= cross(tvec, triangle.ab);
-    float v= dot(ray.d, qvec) * inv_det;
-    if(v < 0.0 || u + v > 1.0) return false;
-    
-    float t= dot(triangle.ac, qvec) * inv_det;
-    if(t < 0.0 || t > ray.t) return false;
 
-
-
-    ray.t = t;
-    ray.triangle_id = triangle.id;
-    ray.u= u;
-    ray.v= v;
-
-    /* calculate t, ray intersects triangle */
-    // rt= dot(triangle.ac, qvec) * inv_det;
-    // ru= u;
-    // rv= v;
-    // id = triangle.id;
-
-
-    //return true;
-    
-    // ne renvoie vrai que si l'intersection est valide : 
-    // interieur du triangle, 0 < u < 1, 0 < v < 1, 0 < u+v < 1
-    if(any(greaterThan(vec3(u, v, u+v), vec3(1, 1, 1))) || any(lessThan(vec2(u, v), vec2(0, 0)))){
-        return false;
-    }
-    // comprise entre 0 et tmax du rayon
-    return (ray.t < tmax && ray.t > 0);
-};
-
-
-bool intersect2( const Triangle triangle, inout RayHit ray, const float tmax)
-{
-    vec3 pvec= cross(ray.d, triangle.ac);
-    float det= dot(triangle.ab, pvec);
-    float inv_det= 1.0f / det;
-    
-    vec3 tvec= ray.o - triangle.a;
-    float u= dot(tvec, pvec) * inv_det;
-    vec3 qvec= cross(tvec, triangle.ab);
-    float v= dot(ray.d, qvec) * inv_det;
-    
-    ray.t= dot(triangle.ac, qvec) * inv_det;
-    ray.triangle_id = triangle.id;
-    ray.u= u;
-    ray.v= v;
-
-    /* calculate t, ray intersects triangle */
-    // rt= dot(triangle.ac, qvec) * inv_det;
-    // ru= u;
-    // rv= v;
-    // id = triangle.id;
-
-
-    //return true;
-    
-    // ne renvoie vrai que si l'intersection est valide : 
-    // interieur du triangle, 0 < u < 1, 0 < v < 1, 0 < u+v < 1
-    if(any(greaterThan(vec3(u, v, u+v), vec3(1, 1, 1))) || any(lessThan(vec2(u, v), vec2(0, 0)))){
-        return false;
-    }
-    // comprise entre 0 et tmax du rayon
-    return (ray.t < tmax && ray.t > 0);
-};
 
 
 
@@ -407,50 +277,13 @@ void test_intersect( inout RayHit rayhit , const float tmax)
     }
 };
 
-void test_intersect_old( inout RayHit rayhit , const float tmax, inout float hit, inout float hitu, inout float hitv, inout int id) 
-{
-    for(int i= 0; i < triangles.length(); i++)
-    {
-        //float t, u, v;    
-        // float t, u, v;  
-        // //int i2;
-        // int i2;
-        // RayHit rayhit = RayHit(o,t,d,i2,u,v);
-        
-        //if(intersect(triangles[i], o, d, hit, t, u, v))
-        if(intersect2(triangles[i], rayhit, tmax ))
-        //out float rt, out int id, out float ru, out float rv)
-        //if(intersect(triangles[i], o, d, hit, t, i2, u, v, rayhit))
-        {
-            if (hit>rayhit.t){ //zbuffer
-                hit= rayhit.t;
-                hitu=rayhit.u;//1-t;//
-                hitv=rayhit.v; //1-t;//
-                id=rayhit.triangle_id;//rayhit.triangle_id;//triangles[i].id;
-            }
-        }
-    }
-};
 
 bool test_intersect_bool( inout RayHit rayhit , const float tmax, inout float hit, inout float hitu, inout float hitv, inout int id) 
 {
     for(int i= 0; i < triangles.length(); i++)
     {
-        //float t, u, v;    
-        // float t, u, v;  
-        // //int i2;
-        // int i2;
-        // RayHit rayhit = RayHit(o,t,d,i2,u,v);
-        
-        //if(intersect(triangles[i], o, d, hit, t, u, v))
-        if(intersect2(triangles[i], rayhit, tmax))
-        //out float rt, out int id, out float ru, out float rv)
-        //if(intersect(triangles[i], o, d, hit, t, i2, u, v, rayhit))
+        if(intersect_new(triangles[i], rayhit, tmax))
         {
-            hit= rayhit.t;
-            hitu=rayhit.u;//1-t;//
-            hitv=rayhit.v; //1-t;//
-            id=rayhit.triangle_id;//rayhit.triangle_id;//triangles[i].id;
             return true;
         }
     }
@@ -482,7 +315,7 @@ void main( )
     vec3 d= eh.xyz / eh.w - oh.xyz / oh.w;              // direction
 
     float tmax =1.0;
-    float hit= 1.0;	// tmax = far, une intersection valide est plus proche que l'extremite du rayon / far...
+    float hit= tmax;	// tmax = far, une intersection valide est plus proche que l'extremite du rayon / far...
     float hitu= 0.0;
     float hitv= 0.0;
     int id;
@@ -494,28 +327,10 @@ void main( )
     //intersect( rayhit , tmax, hit, hitu, hitv,id);
     test_intersect( rayhit , tmax) ;
 
-    // if (rayhit.t < 1.0 && rayhit.t > 0){ //if dans mesh
     hit= rayhit.t;
-    hitu=rayhit.u;//1-t;//
-    hitv=rayhit.v; //1-t;//
-    id=rayhit.triangle_id;//rayhit.triangle_id;//triangles[i].id;
-    //}
-
-
-    // for(int i= 0; i < triangles.length(); i++)
-    // {
-
-    //     //if(intersect(triangles[i], o, d, hit, t, u, v))
-    //     if(intersect(triangles[i], rayhit, hit))
-    //     //out float rt, out int id, out float ru, out float rv)
-    //     //if(intersect(triangles[i], o, d, hit, t, i2, u, v, rayhit))
-    //     {
-    //         hit=rayhit.t;
-    //         hitu=rayhit.u;//1-t;//
-    //         hitv=rayhit.v; //1-t;//
-    //         id=rayhit.triangle_id;//rayhit.triangle_id;//triangles[i].id;
-    //     }
-    // }
+    hitu=rayhit.u;
+    hitv=rayhit.v;
+    id=rayhit.triangle_id;
     
     float w = 1.0 - hitu - hitv;
     vec3 p = triangles[id].a + hitu*triangles[id].ab + hitv*triangles[id].ac;
@@ -562,13 +377,13 @@ void main( )
         
 
 
-        float hit2= 1.0;	// tmax = far, une intersection valide est plus proche que l'extremite du rayon / far...
+        float hit2= 10000.0;	// tmax = far, une intersection valide est plus proche que l'extremite du rayon / far...
         float hitu2= 0.0;
         float hitv2= 0.0;
         int id2;
         float t2, u22, v2;
         //int i2;
-        RayHit rayhit2 = RayHit(p+0.01*n_p,t2,d_l,id2,u22,v2);
+        RayHit rayhit2 = RayHit(p+0.0001*n_p,hit2,d_l,id2,u22,v2);
 
         if(test_intersect_bool(rayhit2 , 10000, hit2, hitu2, hitv2, id2)==true){
             v = 0;

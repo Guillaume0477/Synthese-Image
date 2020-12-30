@@ -187,9 +187,96 @@ struct RayHit
 // };
 
 
+bool intersect_new( const Triangle triangle, inout RayHit ray, const float tmax)
+{
+    
+    //ray = ray;
+    vec3 pvec= cross(ray.d, triangle.ac);
+    float det= dot(triangle.ab, pvec);
+    float inv_det= 1.0f / det;
+    
+    vec3 tvec= ray.o - triangle.a;
+    float u= dot(tvec, pvec) * inv_det;
+    if(u < 0.0 || u > 1.0) return false;
+    
+    vec3 qvec= cross(tvec, triangle.ab);
+    float v= dot(ray.d, qvec) * inv_det;
+    if(v < 0.0 || u + v > 1.0) return false;
+    
+    float t= dot(triangle.ac, qvec) * inv_det;
+    if(t < 0.0 || t > ray.t) return false;
 
+
+
+    ray.t = t;
+    ray.triangle_id = triangle.id;
+    ray.u= u;
+    ray.v= v;
+
+    /* calculate t, ray intersects triangle */
+    // rt= dot(triangle.ac, qvec) * inv_det;
+    // ru= u;
+    // rv= v;
+    // id = triangle.id;
+
+
+    //return true;
+    
+    // ne renvoie vrai que si l'intersection est valide : 
+    // interieur du triangle, 0 < u < 1, 0 < v < 1, 0 < u+v < 1
+    if(any(greaterThan(vec3(u, v, u+v), vec3(1, 1, 1))) || any(lessThan(vec2(u, v), vec2(0, 0)))){
+        return false;
+    }
+    // comprise entre 0 et tmax du rayon
+    return (ray.t < tmax && ray.t > 0);
+};
 
 bool intersect( const Triangle triangle, inout RayHit ray, const float tmax)
+{
+    
+    //ray = ray;
+    vec3 pvec= cross(ray.d, triangle.ac);
+    float det= dot(triangle.ab, pvec);
+    float inv_det= 1.0f / det;
+    
+    vec3 tvec= ray.o - triangle.a;
+    float u= dot(tvec, pvec) * inv_det;
+    if(u < 0.0 || u > 1.0) return false;
+    
+    vec3 qvec= cross(tvec, triangle.ab);
+    float v= dot(ray.d, qvec) * inv_det;
+    if(v < 0.0 || u + v > 1.0) return false;
+    
+    float t= dot(triangle.ac, qvec) * inv_det;
+    if(t < 0.0 || t > ray.t) return false;
+
+
+
+    ray.t = t;
+    ray.triangle_id = triangle.id;
+    ray.u= u;
+    ray.v= v;
+
+    /* calculate t, ray intersects triangle */
+    // rt= dot(triangle.ac, qvec) * inv_det;
+    // ru= u;
+    // rv= v;
+    // id = triangle.id;
+
+
+    //return true;
+    
+    // ne renvoie vrai que si l'intersection est valide : 
+    // interieur du triangle, 0 < u < 1, 0 < v < 1, 0 < u+v < 1
+    if(any(greaterThan(vec3(u, v, u+v), vec3(1, 1, 1))) || any(lessThan(vec2(u, v), vec2(0, 0)))){
+        return false;
+    }
+    // comprise entre 0 et tmax du rayon
+    return (ray.t < tmax && ray.t > 0);
+};
+
+
+bool intersect2( const Triangle triangle, inout RayHit ray, const float tmax)
 {
     vec3 pvec= cross(ray.d, triangle.ac);
     float det= dot(triangle.ab, pvec);
@@ -226,49 +313,101 @@ bool intersect( const Triangle triangle, inout RayHit ray, const float tmax)
 
 
 
+void swap(inout float a, inout float b){
+    float tempa = a;
+    a = b;
+    b = tempa;
+}
 
-// void intersect(inout RayHit ray, const vec3 invd, const float tmax)
-//     {
+bool intersect( BBox bbox, const RayHit ray, const vec3 invd )
+{
+    vec3 rmin= bbox.pmin;
+    vec3 rmax= bbox.pmax;
+    if(ray.d.x < 0) {
+        float temp = rmin.x;
+        rmin.x = rmax.x;
+        rmax.x = temp;
+        //std::swap(rmin.x, rmax.x);
+    }
+    if(ray.d.y < 0){
+        float temp = rmin.y;
+        rmin.y = rmax.y;
+        rmax.y = temp;    
+        //std::swap(rmin.y, rmax.y);
+    } 
+    if(ray.d.z < 0){
+        float temp = rmin.z;
+        rmin.z = rmax.z;
+        rmax.z = temp;   
+        //std::swap(rmin.z, rmax.z);
+    } 
+    vec3 dmin= (rmin - ray.o) * invd;
+    vec3 dmax= (rmax - ray.o) * invd;
+    
+    float tmin= max(dmin.z, max(dmin.y, max(dmin.x, 0.f)));
+    float tmax= min(dmax.z, min(dmax.y, min(dmax.x, ray.t)));
+    return tmin<= tmax;
+};
 
-//     int stack[64];
-//     int top= 0;
+
+bool intersect( BBox bbox, const RayHit ray )
+{
+    vec3 invd= vec3(1.0f / ray.d.x, 1.0f / ray.d.y, 1.0f / ray.d.z);
+    return intersect(bbox, ray, invd);
+};
+
+void intersect(inout RayHit ray, const vec3 invd, const float tmax)
+    {
+
+    int stack[64];
+    int top= 0;
     
-//     // empiler la racine
-//     stack[top++]= 64;//root;
+    // empiler la racine
+    stack[top++]= 64;//root;
     
-//     //float tmax= ray.tmax;
-//     // tant qu'il y a un noeud dans la pile
-//     while(top > 0)
-//     {
-//         int index= stack[--top];
+    //float tmax= ray.tmax;
+    // tant qu'il y a un noeud dans la pile
+    while(top > 0)
+    {
+        int index= stack[--top];
         
-//         const Node node= nodes[index];
-//         if(intersect(node.bounds, ray, invd))
-//         {
-//             if(leaf(node))
-//             {
-//                 for(int i= leaf_begin(node); i < leaf_end(node); i++)
-//                     intersect(triangles[i],ray,tmax);
-//             }
-//             else // if(node.internal())
-//             {
-//                 //assert(top +1 < 64);       // le noeud est touche, empiler les fils
-//                 stack[top++]= internal_left(node);
-//                 stack[top++]= internal_right(node);
-//             }
-//         }
-//     }
-// };
+        const Node node= nodes[index];
+        if(intersect(node.bounds, ray, invd))
+        {
+            if(leaf(node))
+            {
+                for(int i= leaf_begin(node); i < leaf_end(node); i++){
+                    intersect_new(triangles[i],ray,tmax);
+                }
+            }
+            else // if(node.internal())
+            {
+                //assert(top +1 < 64);       // le noeud est touche, empiler les fils
+                stack[top++]= internal_left(node);
+                stack[top++]= internal_right(node);
+            }
+        }
+    }
+};
 
 
-// void intersect( RayHit ray , const float tmax)
-// {
-//     vec3 invd= vec3(1.0f / ray.d.x, 1.0f / ray.d.y, 1.0f / ray.d.z);
-//     intersect(ray, invd, tmax);
-// };
+void intersect( RayHit ray , const float tmax)
+{
+    vec3 invd= vec3(1.0f / ray.d.x, 1.0f / ray.d.y, 1.0f / ray.d.z);
+    intersect(ray, invd, tmax);
+
+};
 
 
-void test_intersect( inout RayHit rayhit , const float tmax, inout float hit, inout float hitu, inout float hitv, inout int id) 
+void test_intersect( inout RayHit rayhit , const float tmax) 
+{
+    for(int i= 0; i < triangles.length(); i++)
+    {
+        intersect_new(triangles[i], rayhit, tmax);
+    }
+};
+
+void test_intersect_old( inout RayHit rayhit , const float tmax, inout float hit, inout float hitu, inout float hitv, inout int id) 
 {
     for(int i= 0; i < triangles.length(); i++)
     {
@@ -279,7 +418,7 @@ void test_intersect( inout RayHit rayhit , const float tmax, inout float hit, in
         // RayHit rayhit = RayHit(o,t,d,i2,u,v);
         
         //if(intersect(triangles[i], o, d, hit, t, u, v))
-        if(intersect(triangles[i], rayhit, tmax))
+        if(intersect2(triangles[i], rayhit, tmax ))
         //out float rt, out int id, out float ru, out float rv)
         //if(intersect(triangles[i], o, d, hit, t, i2, u, v, rayhit))
         {
@@ -292,6 +431,7 @@ void test_intersect( inout RayHit rayhit , const float tmax, inout float hit, in
         }
     }
 };
+
 bool test_intersect_bool( inout RayHit rayhit , const float tmax, inout float hit, inout float hitu, inout float hitv, inout int id) 
 {
     for(int i= 0; i < triangles.length(); i++)
@@ -303,7 +443,7 @@ bool test_intersect_bool( inout RayHit rayhit , const float tmax, inout float hi
         // RayHit rayhit = RayHit(o,t,d,i2,u,v);
         
         //if(intersect(triangles[i], o, d, hit, t, u, v))
-        if(intersect(triangles[i], rayhit, tmax))
+        if(intersect2(triangles[i], rayhit, tmax))
         //out float rt, out int id, out float ru, out float rv)
         //if(intersect(triangles[i], o, d, hit, t, i2, u, v, rayhit))
         {
@@ -350,10 +490,18 @@ void main( )
     float t, u, v;  
     //int i2;
     int i2;
-    RayHit rayhit = RayHit(o,t,d,i2,u,v);
-    test_intersect( rayhit , tmax, hit, hitu, hitv,id) ;
+    RayHit rayhit = RayHit(o,hit,d,i2,u,v);
+    //intersect( rayhit , tmax, hit, hitu, hitv,id);
+    test_intersect( rayhit , tmax) ;
 
-    
+    // if (rayhit.t < 1.0 && rayhit.t > 0){ //if dans mesh
+    hit= rayhit.t;
+    hitu=rayhit.u;//1-t;//
+    hitv=rayhit.v; //1-t;//
+    id=rayhit.triangle_id;//rayhit.triangle_id;//triangles[i].id;
+    //}
+
+
     // for(int i= 0; i < triangles.length(); i++)
     // {
 

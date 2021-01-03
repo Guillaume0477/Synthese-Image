@@ -589,7 +589,7 @@ Color color_indirect_direction(std::default_random_engine &rng, std::uniform_rea
             Point p_qn = point(hit2, ray2);
 
             float cos_theta_s = std::max(0.f, dot(qn, normalize(-d)));
-            int N_point_Source_direct = 4;
+            int N_point_Source_direct = 16;
 
             Color emission_q = color_direct_sources_cornell(rng, u01, material2, sources, bvh, N_Source, N_point_Source_direct, qn, p_qn);
             //color= color +  emission_q*material.diffuse* cos_theta_s* cos_theta * 1.f / (length2(p_qn-p)*N_point_Source*pdf );
@@ -1123,21 +1123,27 @@ int main(const int argc, const char **argv)
                 Color emission = material.emission;
                 World world(pn);
 
-                int N_point_Source = 32;
-                int N_point_Source_direct = 16;
+                int N_point_Source = 16; //nombre d'echantillon (points triangle, direction...)
+                
+                //generation de direction et trouver les sources de lumières
+                color = color_direct_direction_emission( rng, u01, material, mesh, bvh, N_point_Source,pn, p); //pour emission
+                //color = color_direct_direction( rng, u01, material, mesh, bvh, N_point_Source,pn, p); //pour cornell
 
-                //color = color_direct_direction_emission( rng, u01, material, mesh, bvh, N_point_Source,pn, p);
+                //echantillonage des traingles des sources de lumière, utilisable pour emission et cornell;
                 //color = color_direct_sources_Area_emission( rng, u01, material, sources, bvh, N_Source, N_point_Source,pn, p); //OK
                 //color = color_direct_sources_random_emission( rng, u01, material, sources, bvh, N_Source, N_point_Source,pn, p); //OK
+                
                 //color = color_Ultime(rng, u01, material, mesh, sources, bvh, N_Source, N_point_Source, pn, p);
                 //color = color_Ultime_modified(rng, u01, material, mesh, sources, bvh, N_Source, N_point_Source, pn, p);
 
-                color = color_ambiant_direction(rng, u01, material, mesh, bvh, N_point_Source, pn, p);
-                //color = color_direct_direction( rng, u01, material, mesh, bvh, N_point_Source,pn, p);
-                //color_direct = color_direct_sources_cornell( rng, u01, material, sources, bvh, N_Source, N_point_Source_direct,pn, p);
-                //color_indirect = color_indirect_direction(rng, u01, material, mesh,sources, bvh, N_point_Source, N_Source, pn, p);
+                // eclairage ambiant du ciel, utilisable pour emission et cornell
+                //color = color_ambiant_direction(rng, u01, material, mesh, bvh, N_point_Source, pn, p);
 
+                
+                //color_direct = color_direct_sources_cornell( rng, u01, material, sources, bvh, N_Source, N_point_Source_direct,pn, p); //N_point_Source_direct
+                //color_indirect = color_indirect_direction(rng, u01, material, mesh,sources, bvh, N_point_Source, N_Source, pn, p); //N_point_Source direction puis 16 point en direct
                 //color = color_indirect/2 + color_direct/2;
+
                 float gamma = 2.2;
                 color.r = pow(color.r, 1.0 / gamma);
                 color.g = pow(color.g, 1.0 / gamma);

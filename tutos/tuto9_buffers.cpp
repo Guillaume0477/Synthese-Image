@@ -24,6 +24,85 @@ struct Buffers
 
     Buffers() : vao(0), vertex_buffer(0), vertex_count(0) {}
 
+
+    void create(const Mesh &mesh)
+    {
+        if (!mesh.vertex_buffer_size())
+            return;
+
+        if (mesh.materials().count() == 0)
+            // pas de matieres, pas d'affichage
+            return;
+        printf("%d materials.\n", mesh.materials().count());
+
+        // cree et initialise le buffer: conserve la positions des sommets
+        glGenBuffers(1, &vertex_buffer);
+        glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
+        size_t size = mesh.vertex_buffer_size() + mesh.texcoord_buffer_size() + mesh.normal_buffer_size() + mesh.vertex_count() * sizeof(unsigned char);
+        glBufferData(GL_ARRAY_BUFFER, size, nullptr, GL_STATIC_DRAW);
+
+        // cree et configure le vertex array object: conserve la description des attributs de sommets
+        glGenVertexArrays(1, &vao);
+        glBindVertexArray(vao);
+
+        /*
+         // attribut 0, position des sommets, declare dans le vertex shader : in vec3 position;
+         glVertexAttribPointer(0, 
+             3, GL_FLOAT,    // size et type, position est un vec3 dans le vertex shader
+             GL_FALSE,       // pas de normalisation des valeurs
+             0,              // stride 0, les valeurs sont les unes a la suite des autres
+             0               // offset 0, les valeurs sont au debut du buffer
+         );
+         glEnableVertexAttribArray(0);
+         */
+
+        // transfere les positions des sommets
+        size_t offset = 0;
+        size = mesh.vertex_buffer_size();
+        glBufferSubData(GL_ARRAY_BUFFER, offset, size, mesh.vertex_buffer());
+        // et configure l'attribut 0, vec3 position
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, /* stride */ 0, (const GLvoid *)offset);
+        glEnableVertexAttribArray(0);
+
+        // transfere les texcoords des sommets
+        offset = offset + size;
+        size = mesh.texcoord_buffer_size();
+        glBufferSubData(GL_ARRAY_BUFFER, offset, size, mesh.texcoord_buffer());
+        // et configure l'attribut 1, vec2 texcoord
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, /* stride */ 0, (const GLvoid *)offset);
+        glEnableVertexAttribArray(1);
+
+        // transfere les normales des sommets
+        offset = offset + size;
+        size = mesh.normal_buffer_size();
+        glBufferSubData(GL_ARRAY_BUFFER, offset, size, mesh.normal_buffer());
+        // et configure l'attribut 2, vec3 normal
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, /* stride */ 0, (const GLvoid *)offset);
+        glEnableVertexAttribArray(2);
+
+        // transfere les indices materiel
+        offset = offset + size;
+        size = mesh.vertex_count() * sizeof(unsigned char);
+        assert(int(mesh.vertex_count() / 3) == mesh.triangle_count());
+
+        // prepare un indice de matiere par sommet / 3 indices par triangle
+        std::vector<unsigned char> buffer(mesh.vertex_count());
+        for (int i = 0; i < int(mesh.vertex_count() / 3); i++)
+        {
+            int index = mesh.triangle_material_index(i);
+            buffer[3 * i] = index;
+            buffer[3 * i + 1] = index;
+            buffer[3 * i + 2] = index;
+        }
+
+        glBufferSubData(GL_ARRAY_BUFFER, offset, size, buffer.data());
+        glVertexAttribIPointer(3, 1, GL_UNSIGNED_BYTE, 0, (const void *)offset);
+        glEnableVertexAttribArray(3);
+
+        // conserve le nombre de sommets
+        vertex_count = mesh.vertex_count();
+    }
+
     void create(const Mesh &mesh, const Mesh &mesh2)
     {
         if (!mesh.vertex_buffer_size())
@@ -250,7 +329,7 @@ public:
                 }
             }
             
-            m_objet_2_cube[i].create(mesh, mesh2);
+            m_objet_2_cube[i].create(mesh);
             
         }
 

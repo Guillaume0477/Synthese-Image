@@ -5,8 +5,8 @@
 
 #ifdef VERTEX_SHADER
 layout(location= 0) in vec3 position;
-layout(location= 2) in vec2 texcoord;
-layout(location= 4) in vec3 normal;
+layout(location= 1) in vec2 texcoord;
+layout(location= 2) in vec3 normal;
 
 uniform mat4 mvpMatrix;
 uniform mat4 mvMatrix;

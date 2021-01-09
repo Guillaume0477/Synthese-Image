@@ -13,11 +13,11 @@ uniform mat4 normalMatrix;
 void main( )
 {
     // retrouve la position dans la grille 5x5 en fonction de l'identifiant de la copie / instance
-    float x= float(gl_InstanceID % 5) - 2;
-    float y= float(gl_InstanceID / 5) - 2;
+    float x= float(gl_InstanceID % 20) - 2;
+    float y= float(gl_InstanceID / 20) - 2;
     
     // deplace le sommet pour le placer dans la grille
-    gl_Position= mvpMatrix * vec4(position + vec3(x * 20, y * 20, 0), 1);
+    gl_Position= mvpMatrix * vec4(position + vec3(x * 2, 0, y * 2), 1);
     vertex_normal= mat3(normalMatrix) * normal;
 }
 #endif

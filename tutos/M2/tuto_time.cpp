@@ -29,10 +29,10 @@ public:
     {
         // charge un objet et une texture a afficher
         // mode 0 & 1
-        m_objet= read_mesh("data/bigguy.obj");        
+        m_objet= read_mesh("data/cube.obj");        
         Point pmin, pmax;
         m_objet.bounds(pmin, pmax);
-        m_camera.lookat(pmin - Vector(20, 20, 0), pmax + Vector(20, 20, 0));
+        m_camera.lookat(pmin - Vector(25, 25, 0), pmax + Vector(25, 25, 0));
 
         m_texture= read_texture(0, "data/debug2x2red.png");
         
@@ -96,7 +96,7 @@ public:
     
     int update( const float time, const float delta )
     {
-        m_model= RotationY(time / 20);
+        m_model= Identity();//RotationY(time / 21);
         return 0;
     }
     
@@ -136,10 +136,10 @@ public:
         else if(mode == 1)
         {
             // dessine 25 fois l'objet sur une grille
-            for(int y= -2; y <= 2; y++)
-            for(int x= -2; x <= 2; x++)
+            for(int y= -10; y <= 10; y++)
+            for(int x= -10; x <= 10; x++)
             {
-                Transform t= Translation(x *20, y *20, 0);
+                Transform t= Translation(x *2, 0, y *2);
                 draw(m_objet, t * m_model, m_camera, m_texture);
             }
         }
@@ -159,7 +159,7 @@ public:
             program_uniform(m_program, "mvpMatrix", mvp);
             program_uniform(m_program, "normalMatrix", mv.normal());
             
-            glDrawArraysInstanced(GL_TRIANGLES, 0, m_vertex_count, 25);
+            glDrawArraysInstanced(GL_TRIANGLES, 0, m_vertex_count, 400);
         }
     
         std::chrono::high_resolution_clock::time_point cpu_stop= std::chrono::high_resolution_clock::now();
@@ -183,8 +183,8 @@ public:
         // affiche le temps mesure, et formate les valeurs... c'est un peu plus lisible.
         clear(m_console);
         if(mode == 0) printf(m_console, 0, 0, "mode 0 : 1 draw");
-        if(mode == 1) printf(m_console, 0, 0, "mode 1 : 25 draws");
-        if(mode == 2) printf(m_console, 0, 0, "mode 2 : 1 draw / 25 instances");
+        if(mode == 1) printf(m_console, 0, 0, "mode 1 : 400 draws");
+        if(mode == 2) printf(m_console, 0, 0, "mode 2 : 1 draw / 400 instances");
         printf(m_console, 0, 1, "cpu  %02dms %03dus", int(cpu_time / 1000), int(cpu_time % 1000));
         printf(m_console, 0, 2, "gpu  %02dms %03dus", int(gpu_time / 1000000), int((gpu_time / 1000) % 1000));
         printf(m_console, 0, 3, "wait %02dms %03dus", int(wait_time / 1000), int(wait_time % 1000));

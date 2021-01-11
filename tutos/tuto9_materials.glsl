@@ -90,7 +90,7 @@ void main( )
     
     //fragment_color= vec4(1, 0.5, 0, 1);
     //fragment_color= color0 * colorm * cos_theta;
-    buffer_color = vec4(n,1);//vec4(cos_theta,cos_theta,cos_theta,1);//vec4(cos_theta,cos_theta,cos_theta,1);//colorm * cos_theta;//* vec4(0.486, 0.988, 0, 1);
+    buffer_color = cos_theta *colorm;//vec4(col,1);//vec4(cos_theta,cos_theta,cos_theta,1);//vec4(cos_theta,cos_theta,cos_theta,1);//colorm * cos_theta;//* vec4(0.486, 0.988, 0, 1);
     buffer_position = vec4(vertex_position,1);
     buffer_normal = vec4(vertex_normal,1);
     buffer_material = colorm;

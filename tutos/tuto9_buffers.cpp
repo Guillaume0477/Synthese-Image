@@ -603,7 +603,7 @@ public:
         program_print_errors(m_program);
         m_program_origin = read_program("tutos/tuto9_materials copy.glsl");
         program_print_errors(m_program2);
-        m_program2 = read_program("tutos/tuto9_materials copy.glsl");
+        m_program2 = read_program("tutos/tuto9_materials.glsl");
         program_print_errors(m_program2);
         m_program_quad = read_program("tutos/quad.glsl");
         program_print_errors(m_program_quad);

@@ -890,10 +890,10 @@ Color color_Ultime_modified(std::default_random_engine &rng, std::uniform_real_d
 
 int main(const int argc, const char **argv)
 {
-    //const char *mesh_filename= "data/cornell.obj";
-    const char *mesh_filename = "data/emission.obj";
-    //const char *orbiter_filename= "data/cornell_orbiter.txt";
-    const char *orbiter_filename = "data/emission_orbiter.txt";
+    const char *mesh_filename= "data/cornell.obj";
+    //const char *mesh_filename = "data/emission.obj";
+    const char *orbiter_filename= "data/cornell_orbiter.txt";
+    //const char *orbiter_filename = "data/emission_orbiter.txt";
     //const char *orbiter_filename= "data/orbiter.txt";
     //const char *orbiter_filename= "orbiter.txt";
 
@@ -979,9 +979,10 @@ int main(const int argc, const char **argv)
                 World world(pn);
 
                 int N_point_Source = 16; //nombre d'echantillon (points triangle, direction...)
-                
+                int N_point_Source_direct = 16; // juste pour direct
+
                 //////generation de direction et trouver les sources de lumières
-                color = color_direct_direction_emission( rng, u01, material, mesh, bvh, N_point_Source,pn, p); //pour emission
+                //color = color_direct_direction_emission( rng, u01, material, mesh, bvh, N_point_Source,pn, p); //pour emission
                 //color = color_direct_direction( rng, u01, material, mesh, bvh, N_point_Source,pn, p); //pour cornell
 
                 //////echantillonage des traingles des sources de lumière, utilisable pour emission et cornell;
@@ -996,9 +997,9 @@ int main(const int argc, const char **argv)
                 //color = color_ambiant_direction(rng, u01, material, mesh, bvh, N_point_Source, pn, p);
 
                 
-                //color_direct = color_direct_sources_cornell( rng, u01, material, sources, bvh, N_Source, N_point_Source_direct,pn, p); //N_point_Source_direct
-                //color_indirect = color_indirect_direction(rng, u01, material, mesh,sources, bvh, N_point_Source, N_Source, pn, p); //N_point_Source direction puis 16 point en direct
-                //color = color_indirect/2 + color_direct/2;
+                color_direct = color_direct_sources_cornell( rng, u01, material, sources, bvh, N_Source, N_point_Source_direct,pn, p); //N_point_Source_direct
+                color_indirect = color_indirect_direction(rng, u01, material, mesh,sources, bvh, N_point_Source, N_Source, pn, p); //N_point_Source direction puis 16 point en direct
+                color = color_indirect/2 + color_direct/2;
 
                 float gamma = 2.2;
                 color.r = pow(color.r, 1.0 / gamma);

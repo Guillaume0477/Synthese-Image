@@ -371,6 +371,16 @@ struct BVH
 };
 */
  
+// struct BBoxNode{
+//     Point pmin;
+//     int left;
+//     Point pmax;
+//     int right;
+
+//     BBoxNode BBoxNode { pmin, left,pmax, right };
+// };
+
+
 
 struct Node
 {
@@ -659,6 +669,28 @@ struct RT : public AppTime
             printf("build %dms\n", cpu);
         }
 
+        root_uni = bvh.root;
+        std::cout<<"root_uni "<<root_uni<<std::endl;
+
+
+        // std::vector<Node> dataNode;
+        // //data.reserve(m_mesh.triangle_count());
+        // for(int i= 0; i < bvh.nodes.size(); i++)
+        // {
+        //     Node BNode= Node(bvh.nodes[i].bounds.pmin , bvh.nodes[i].left , bvh.nodes[i].bounds.pmax , bvh.nodes[i].right);
+        //     //data.push_back( { Point(t.a),1, Point(t.b) - Point(t.a),1, Point(t.c) - Point(t.a), i } );
+        //     dataNode.emplace_back(BNode);
+        // }
+
+        // std::vector<BBoxNode> dataNode;
+        // //data.reserve(m_mesh.triangle_count());
+        // for(int i= 0; i < bvh.nodes.size(); i++)
+        // {
+        //     BBoxNode BNode= BBoxNode(bvh.nodes[i].bounds.pmin , bvh.nodes[i].left , bvh.nodes[i].bounds.pmax , bvh.nodes[i].right);
+        //     //data.push_back( { Point(t.a),1, Point(t.b) - Point(t.a),1, Point(t.c) - Point(t.a), i } );
+        //     dataNode.emplace_back(BNode);
+        // }
+
 
         // std::vector<Node> nodes;
         // data.reserve(m_mesh.triangle_count());
@@ -811,6 +843,8 @@ struct RT : public AppTime
         // uniforms
         program_uniform(m_program, "invMatrix", T.inverse());
 
+        program_uniform(m_program, "root", root_uni);
+
         program_uniform(m_program, "frame", frame);
         //glUniform1i( location(m_program, "frame"), frame)
         frame++;
@@ -853,12 +887,14 @@ protected:
     GLuint m_buffer_node;
 
     int frame;
+    int root_uni;
 };
 
     
 int main( int argc, char **argv )
 {
     const char *filename= "data/cornell.obj";
+    //const char *filename= "data/emission.obj";
     if(argc > 1)
         filename= argv[1];
     

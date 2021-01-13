@@ -6,7 +6,9 @@
 struct Triangle
 {
     vec3 a;		// sommet
+    //int pada;
     vec3 ab;	// arete 1
+    //int padb;
     vec3 ac;	// arete 2
     int id;
 };
@@ -14,9 +16,9 @@ struct Triangle
 struct BBox
 {
     vec3 pmin;
-    int paspmin;
+    //int paspmin;
     vec3 pmax;
-    int paspmax;
+    //int paspmax;
 };
 
 
@@ -29,13 +31,13 @@ struct Node
     int padright;
 };
 
-bool internal( Node node ) { return (node.right > 0); };                        // renvoie vrai si le noeud est un noeud interne
-int internal_left( Node node ) {  return node.left; };     // renvoie le fils gauche du noeud interne 
-int internal_right( Node node ) { return node.right; };   // renvoie le fils droit
+bool internal(in Node node ) { return (node.right > 0); };                        // renvoie vrai si le noeud est un noeud interne
+int internal_left(in Node node ) {  return node.left; };     // renvoie le fils gauche du noeud interne 
+int internal_right(in Node node ) { return node.right; };   // renvoie le fils droit
 
-bool leaf( Node node ) { return (node.right < 0); };                            // renvoie vrai si le noeud est une feuille
-int leaf_begin( Node node ) { return -node.left; };           // renvoie le premier objet de la feuille
-int leaf_end( Node node ) { return -node.right; };   
+bool leaf(in Node node ) { return (node.right < 0); };                            // renvoie vrai si le noeud est une feuille
+int leaf_begin(in Node node ) { return -node.left; };           // renvoie le premier objet de la feuille
+int leaf_end(in Node node ) { return -node.right; };   
 
 
 vec3 global( const in vec3 n) { 
@@ -134,7 +136,7 @@ struct RayHit
 
 
 
-bool intersect_new( const Triangle triangle, inout RayHit ray, const float tmax)
+bool intersect_new( in const Triangle triangle, inout RayHit ray, in const float tmax)
 {
     
     //ray = ray;
@@ -171,11 +173,11 @@ bool intersect_new( const Triangle triangle, inout RayHit ray, const float tmax)
     
     // ne renvoie vrai que si l'intersection est valide : 
     // interieur du triangle, 0 < u < 1, 0 < v < 1, 0 < u+v < 1
-    if(any(greaterThan(vec3(u, v, u+v), vec3(1, 1, 1))) || any(lessThan(vec2(u, v), vec2(0, 0)))){
-        return false;
-    }
+    // if(any(greaterThan(vec3(u, v, u+v), vec3(1, 1, 1))) || any(lessThan(vec2(u, v), vec2(0, 0)))){
+    //     return false;
+    // }
     // comprise entre 0 et tmax du rayon
-    return (ray.t < tmax && ray.t > 0);
+    return true;//(ray.t < tmax && ray.t > 0);
 };
 
 
@@ -189,51 +191,72 @@ void swap(inout float a, inout float b){
     b = tempa;
 }
 
-bool intersect( BBox bbox, const RayHit ray, const vec3 invd )
+
+
+bool intersect( const in BBox node, in const RayHit ray, const in vec3 invd)
 {
-    vec3 rmin= bbox.pmin;
-    vec3 rmax= bbox.pmax;
-    if(ray.d.x < 0) {
-        float temp = rmin.x;
-        rmin.x = rmax.x;
-        rmax.x = temp;
-        //std::swap(rmin.x, rmax.x);
-    }
-    if(ray.d.y < 0){
-        float temp = rmin.y;
-        rmin.y = rmax.y;
-        rmax.y = temp;    
-        //std::swap(rmin.y, rmax.y);
-    } 
-    if(ray.d.z < 0){
-        float temp = rmin.z;
-        rmin.z = rmax.z;
-        rmax.z = temp;   
-        //std::swap(rmin.z, rmax.z);
-    } 
-    vec3 dmin= (rmin - ray.o) * invd;
-    vec3 dmax= (rmax - ray.o) * invd;
+    vec3 dmin= (node.pmin - ray.o) * invd;
+    vec3 dmax= (node.pmax - ray.o) * invd;
     
-    float tmin= max(dmin.z, max(dmin.y, max(dmin.x, 0.f)));
-    float tmax= min(dmax.z, min(dmax.y, min(dmax.x, ray.t)));
-    return tmin<= tmax;
-};
+    vec3 tmin= min(dmin, dmax);
+    vec3 tmax= max(dmin, dmax);
+    float t0= max(tmin.x, max(tmin.y, tmin.z));
+    float t1= min(tmax.x, min(tmax.y, tmax.z));
+
+    return max(t0, 0) <= min(t1, 1000.0);
+}
 
 
-bool intersect( BBox bbox, const RayHit ray )
+// bool intersect(in BBox bbox,in const RayHit ray, in const vec3 invd ) //same prof
+// {
+//     vec3 rmin= bbox.pmin;
+//     vec3 rmax= bbox.pmax;
+//     if(ray.d.x < 0) {
+//         float temp = rmin.x;
+//         rmin.x = rmax.x;
+//         rmax.x = temp;
+//         //std::swap(rmin.x, rmax.x);
+//     }
+//     if(ray.d.y < 0){
+//         float temp = rmin.y;
+//         rmin.y = rmax.y;
+//         rmax.y = temp;    
+//         //std::swap(rmin.y, rmax.y);
+//     } 
+//     if(ray.d.z < 0){
+//         float temp = rmin.z;
+//         rmin.z = rmax.z;
+//         rmax.z = temp;   
+//         //std::swap(rmin.z, rmax.z);
+//     } 
+//     vec3 dmin= (rmin - ray.o) * invd;
+//     vec3 dmax= (rmax - ray.o) * invd;
+    
+//     float tmin= max(dmin.z, max(dmin.y, max(dmin.x, 0.f)));
+//     float tmax= min(dmax.z, min(dmax.y, min(dmax.x, ray.t)));
+//     return (tmin<= tmax);
+// };
+
+uniform mat4 invMatrix;
+uniform int frame;
+uniform int root;
+
+
+
+bool intersect( in BBox bbox, in const RayHit ray )
 {
     vec3 invd= vec3(1.0f / ray.d.x, 1.0f / ray.d.y, 1.0f / ray.d.z);
     return intersect(bbox, ray, invd);
 };
 
-void intersect(inout RayHit ray, const vec3 invd, const float tmax)
+void intersect(inout RayHit ray, in const vec3 invd, in const float tmax)
     {
 
-    int stack[64];
+    int stack[32];
     int top= 0;
     
     // empiler la racine
-    stack[top++]= 64;//root;
+    stack[top++]= root;//root;
     
     //float tmax= ray.tmax;
     // tant qu'il y a un noeud dans la pile
@@ -261,7 +284,7 @@ void intersect(inout RayHit ray, const vec3 invd, const float tmax)
 };
 
 
-void intersect( RayHit ray , const float tmax)
+void intersect( inout RayHit ray , in const float tmax)
 {
     vec3 invd= vec3(1.0f / ray.d.x, 1.0f / ray.d.y, 1.0f / ray.d.z);
     intersect(ray, invd, tmax);
@@ -269,7 +292,8 @@ void intersect( RayHit ray , const float tmax)
 };
 
 
-void test_intersect( inout RayHit rayhit , const float tmax) 
+
+void test_intersect( inout RayHit rayhit , in const float tmax) 
 {
     for(int i= 0; i < triangles.length(); i++)
     {
@@ -278,7 +302,7 @@ void test_intersect( inout RayHit rayhit , const float tmax)
 };
 
 
-bool test_intersect_bool( inout RayHit rayhit , const float tmax, inout float hit, inout float hitu, inout float hitv, inout int id) 
+bool test_intersect_bool( inout RayHit rayhit , in const float tmax) 
 {
     for(int i= 0; i < triangles.length(); i++)
     {
@@ -291,8 +315,65 @@ bool test_intersect_bool( inout RayHit rayhit , const float tmax, inout float hi
 };
 
 
-uniform mat4 invMatrix;
-uniform int frame;
+
+bool intersect_bool(inout RayHit ray, in const vec3 invd, in const float tmax)
+{
+
+    int stack[32];
+    int top= 0;
+    
+    // empiler la racine
+    stack[top++]= root;//root;
+    
+    //float tmax= ray.tmax;
+    // tant qu'il y a un noeud dans la pile
+    while(top > 0)
+    {
+        int index= stack[--top];
+
+        
+        const Node node= nodes[index];
+        // if (index == 62){
+        //     if ()
+        //     return test_intersect_bool(ray,tmax);
+        // }
+        if(intersect(node.bounds, ray, invd))
+        {
+            if(leaf(node))
+            {                
+                // if (index == 62){ //test node ok ?
+                //     if (node.bounds.pmax.y==1.99) {
+                //         return test_intersect_bool(ray,tmax);
+                //     }
+                // }
+                //bool intersect = false;
+                for(int i= leaf_begin(node); i < leaf_end(node); i++){
+                    if(intersect_new(triangles[i],ray,tmax)){
+                        return true;
+                    };
+                }
+            }
+            else // if(node.internal())
+            {
+                //assert(top +1 < 64);       // le noeud est touche, empiler les fils
+                stack[top++]= internal_left(node);
+                stack[top++]= internal_right(node);
+            }
+        }
+    }
+    return false;
+};
+
+
+bool intersect_bool( inout RayHit ray , in const float tmax)
+{
+    vec3 invd= vec3(1.0f / ray.d.x, 1.0f / ray.d.y, 1.0f / ray.d.z);
+    return intersect_bool(ray, invd, tmax);
+
+};
+
+
+
 
 // image resultat
 layout(binding= 0, rgba8)  coherent uniform image2D image;
@@ -314,20 +395,21 @@ void main( )
     vec3 o= oh.xyz / oh.w;                              // origine
     vec3 d= eh.xyz / eh.w - oh.xyz / oh.w;              // direction
 
-    float tmax =1.0;
+    float tmax =1000.0;
     float hit= tmax;	// tmax = far, une intersection valide est plus proche que l'extremite du rayon / far...
     float hitu= 0.0;
     float hitv= 0.0;
     int id;
         //float t, u, v;    
     float t, u, v;  
-    //int i2;
-    int i2;
-    RayHit rayhit = RayHit(o,hit,d,i2,u,v);
-    //intersect( rayhit , tmax, hit, hitu, hitv,id);
-    test_intersect( rayhit , tmax) ;
 
-    hit= rayhit.t;
+
+    RayHit rayhit = RayHit(o,hit,d,id,u,v);
+    //intersect( rayhit , tmax, hit, hitu, hitv,id);
+    
+    intersect( rayhit , tmax) ;
+
+    hit=rayhit.t;
     hitu=rayhit.u;
     hitv=rayhit.v;
     id=rayhit.triangle_id;
@@ -345,8 +427,6 @@ void main( )
     
     for (int ni = 0; ni<N_ray; ni++){
 
-
- 
         uint k = uint(frame*N_ray+state);
 
         //vec3 d_l = normalize(vec3(0.0,0.0,1.98)-p);///
@@ -376,8 +456,8 @@ void main( )
         float vu_sun = 1;
         
 
-
-        float hit2= 10000.0;	// tmax = far, une intersection valide est plus proche que l'extremite du rayon / far...
+        float tmax2=1000.0;
+        float hit2= tmax2;	// tmax = far, une intersection valide est plus proche que l'extremite du rayon / far...
         float hitu2= 0.0;
         float hitv2= 0.0;
         int id2;
@@ -385,27 +465,10 @@ void main( )
         //int i2;
         RayHit rayhit2 = RayHit(p+0.0001*n_p,hit2,d_l,id2,u22,v2);
 
-        if(test_intersect_bool(rayhit2 , 10000, hit2, hitu2, hitv2, id2)==true){
+        if(intersect_bool(rayhit2 , tmax2)==true){
             v = 0;
             vu_sun = 0;
         }
-
-        // for(int j= 0; j < triangles.length(); j++)
-        // {
-
-        //     //if(intersect(triangles[j], p+0.01*n_p, d_l, 1000, t2, /*id2,**/ u2, v2))
-        //     if(intersect(triangles[j], rayhit2, 1000))
-        //     {
-        //         // hit2= t2;
-        //         // hitu2=u2;//1-t;//
-        //         // hitv2=v2; //1-t;//
-        //         // id2=j;//rayhit.triangle_id;
-        //         v = 0;
-        //         vu_sun = 0;
-        //         break;
-                
-        //     }
-        // }
 
         if (vu_sun==1){
             //vec4 diffuse = vec4(0,0.140,0.450,0.0911);
@@ -431,7 +494,7 @@ void main( )
         Color = Color + ambient;//vec4(0, 0, 0, 1);
     }
     vec4 curr_im = imageLoad(image, ivec2(gl_GlobalInvocationID.xy));
-    Color = (curr_im *frame*N_ray + Color) / (frame *N_ray+N_ray);
+    Color = vec4(1-hitu-hitv, hitu, hitv,1); //(curr_im *frame*N_ray + Color) / (frame *N_ray+N_ray);
     // ecrire le resultat dans l'image
     imageStore(image, ivec2(gl_GlobalInvocationID.xy), Color );
 }

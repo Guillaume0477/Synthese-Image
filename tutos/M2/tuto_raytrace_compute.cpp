@@ -256,7 +256,7 @@ struct Triangle
 //     int id;
 
     Triangle( const TriangleData& data, const int _id ) : p(data.a),padp(1), e1(Vector(data.a, data.b)),pade1(1), e2(Vector(data.a, data.c)), id(_id) {}
-    // Triangle(const Point &_a, const Point &_b, const Point &_c, const int _id) : p(_a), e1(Vector(_a, _b)), e2(Vector(_a, _c)), id(_id) {}
+    Triangle( const Point &_a, const int _padp, const Point &_b, const int _pade1 , const Point &_c, const int _id) : p(_a), padp(_padp), e1(Vector(_a, _b)), pade1(_pade1), e2(Vector(_a, _c)), id(_id) {}
 
     /* calcule l'intersection ray/triangle
         cf "fast, minimum storage ray-triangle intersection" 
@@ -614,6 +614,17 @@ Node make_leaf( const BBox& bounds, const int begin, const int end )
  };
   
 
+struct NodeGPU
+{
+    vec3 pmin;
+    int left;
+    vec3 pmax;
+    int right;
+
+    NodeGPU( const Node& node) : pmin(node.bounds.pmin),left(node.left), pmax(node.bounds.pmax),right(node.right) {}
+    
+};
+
 
 
 struct RT : public AppTime
@@ -653,8 +664,9 @@ struct RT : public AppTime
         for(int i= 0; i < m_mesh.triangle_count(); i++)
         {
             TriangleData t= m_mesh.triangle(i);
-            //data.push_back( { Point(t.a),1, Point(t.b) - Point(t.a),1, Point(t.c) - Point(t.a), i } );
-            data.emplace_back(t, i);
+            data.push_back( { Point(t.a),1, Point(t.b) ,1, Point(t.c) , i } );
+            //Triangle( const Point &_a, const int _padp, const Point &_b, const int _pade1 , const Point &_c, const int _id) 
+            //data.emplace_back(t, i);
         }
  
         BVH bvh;
@@ -673,24 +685,45 @@ struct RT : public AppTime
         std::cout<<"root_uni "<<root_uni<<std::endl;
 
 
-        // std::vector<Node> dataNode;
-        // //data.reserve(m_mesh.triangle_count());
-        // for(int i= 0; i < bvh.nodes.size(); i++)
-        // {
-        //     Node BNode= Node(bvh.nodes[i].bounds.pmin , bvh.nodes[i].left , bvh.nodes[i].bounds.pmax , bvh.nodes[i].right);
-        //     //data.push_back( { Point(t.a),1, Point(t.b) - Point(t.a),1, Point(t.c) - Point(t.a), i } );
-        //     dataNode.emplace_back(BNode);
-        // }
+        std::vector<Node> dataNode;
+        //data.reserve(m_mesh.triangle_count());
+        for(int i= 0; i < bvh.nodes.size() ; i++)
+        {
+            //Node BNode= Node(bvh.nodes[i].bounds, bvh.nodes[i].left, bvh.nodes[i].right, bvh.nodes[i].padleft, bvh.nodes[i].padright);
+            Node BNode= Node(bvh.nodes[i]);
+            //data.push_back( { Point(t.a),1, Point(t.b) - Point(t.a),1, Point(t.c) - Point(t.a), i } );
+            dataNode.emplace_back(BNode);
+        }
 
-        // std::vector<BBoxNode> dataNode;
-        // //data.reserve(m_mesh.triangle_count());
-        // for(int i= 0; i < bvh.nodes.size(); i++)
-        // {
-        //     BBoxNode BNode= BBoxNode(bvh.nodes[i].bounds.pmin , bvh.nodes[i].left , bvh.nodes[i].bounds.pmax , bvh.nodes[i].right);
-        //     //data.push_back( { Point(t.a),1, Point(t.b) - Point(t.a),1, Point(t.c) - Point(t.a), i } );
-        //     dataNode.emplace_back(BNode);
-        // }
+        std::vector<NodeGPU> dataNodeGPU;
+        //data.reserve(m_mesh.triangle_count());
+        for(int i= 0; i < bvh.nodes.size(); i++)
+        {
+            NodeGPU BNode= NodeGPU(bvh.nodes[i]);
+            //data.push_back( { Point(t.a),1, Point(t.b) - Point(t.a),1, Point(t.c) - Point(t.a), i } );
+            dataNodeGPU.emplace_back(BNode);
+        }
 
+        std::vector<Triangle> trianglesGPU;
+        {
+            int n= bvh.triangles.size();
+            std::cout<<"n : "<<n<<std::endl;
+            for(int i= 0; i < n; i++){
+                trianglesGPU.emplace_back(bvh.triangles[i]);
+                std::cout<<"triangles id GPU: "<<trianglesGPU[i].id<<std::endl;
+            }
+        }
+
+        std::vector<Triangle> trianglesGPU2;
+        data.reserve(m_mesh.triangle_count());
+        for(int i= 0; i < m_mesh.triangle_count(); i++)
+        {
+            TriangleData t= m_mesh.triangle(i);
+            trianglesGPU2.push_back( { Point(t.a),1, Point(t.b) ,1, Point(t.c) , bvh.triangles[i].id } );
+            std::cout<<"triangles id GPU2: "<<bvh.triangles[i].id<<std::endl;
+            //Triangle( const Point &_a, const int _padp, const Point &_b, const int _pade1 , const Point &_c, const int _id) 
+            //data.emplace_back(t, i);
+        }
 
         // std::vector<Node> nodes;
         // data.reserve(m_mesh.triangle_count());
@@ -703,12 +736,27 @@ struct RT : public AppTime
         // cree et initialise le storage buffer 0
         glGenBuffers(1, &m_buffer_tri);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_buffer_tri);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, data.size() * sizeof(Triangle), data.data(), GL_STATIC_READ);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, trianglesGPU.size() * sizeof(Triangle), trianglesGPU.data(), GL_STATIC_READ);
+
+        // // cree et initialise le storage buffer 0
+        // glGenBuffers(1, &m_buffer_tri);
+        // glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_buffer_tri);
+        // glBufferData(GL_SHADER_STORAGE_BUFFER, data.size() * sizeof(Triangle), data.data(), GL_STATIC_READ);
         
         // cree et initialise le storage buffer 1
         glGenBuffers(1, &m_buffer_node);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_buffer_node);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, bvh.nodes.size() * sizeof(Triangle), bvh.nodes.data(), GL_STATIC_READ);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, bvh.nodes.size() * sizeof(Node), dataNode.data(), GL_STATIC_READ);
+
+        // // cree et initialise le storage buffer 1
+        // glGenBuffers(1, &m_buffer_node);
+        // glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_buffer_node);
+        // glBufferData(GL_SHADER_STORAGE_BUFFER, dataNodeGPU.size() * sizeof(NodeGPU), dataNodeGPU.data(), GL_STATIC_READ);
+    
+        // cree et initialise le storage buffer 2
+        glGenBuffers(1, &m_buffer_tri2);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_buffer_tri2);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, data.size() * sizeof(Triangle), data.data(), GL_STATIC_READ);
         
 
         // texture / image resultat
@@ -775,7 +823,9 @@ struct RT : public AppTime
     {
         release_program(m_program);
         glDeleteTextures(1, &m_texture);
+        glDeleteTextures(1, &m_seed_image);
         glDeleteBuffers(1, &m_buffer_tri);
+        glDeleteBuffers(1, &m_buffer_tri2);
         glDeleteBuffers(1, &m_buffer_node);
         glDeleteFramebuffers(1, &m_blit_framebuffer);
         return 0;
@@ -830,6 +880,10 @@ struct RT : public AppTime
 
         // storage buffer 1
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, m_buffer_node);
+
+        // storage buffer 2
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, m_buffer_tri2);
+
         
         // image texture 0, ecriture seule, mipmap 0 + format rgba8 classique
         glBindImageTexture(0, m_texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
@@ -884,6 +938,7 @@ protected:
     GLuint m_texture;
     GLuint m_seed_image;
     GLuint m_buffer_tri;
+    GLuint m_buffer_tri2;
     GLuint m_buffer_node;
 
     int frame;
